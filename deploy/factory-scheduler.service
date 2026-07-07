@@ -1,0 +1,10 @@
+[Unit]
+Description=Content Factory — autonomous tick (next approved idea -> run)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+Environment=HOME=/home/ubuntu
+ExecStart=/home/ubuntu/factory/factory.sh

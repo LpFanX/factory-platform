@@ -1,0 +1,10 @@
+[Unit]
+Description=Content Factory autonomous scheduler tick (acts only when autopilot enabled)
+
+[Timer]
+OnCalendar=*-*-* *:00/30:00
+RandomizedDelaySec=120
+Persistent=false
+
+[Install]
+WantedBy=timers.target
