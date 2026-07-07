@@ -21,6 +21,9 @@ DEFAULT_SETTINGS = {
     "profile": "standard",        # economy | standard | full
     "autopilot_enabled": False,   # автономный планировщик берёт идеи сам
     "review_required": True,      # готовый прогон уходит в ревью (принять/на доработку)
+    "max_cost_per_run_rub": 30,   # ЖЁСТКИЙ кап стоимости прогона (₽); прогон обрывается при превышении
+    "max_tokens": 3000,           # потолок выходных токенов на каждый вызов
+    "low_balance_rub": 100,       # порог алерта низкого баланса AITunnel
 }
 
 
@@ -35,7 +38,12 @@ def init():
         c.execute("""CREATE TABLE IF NOT EXISTS runs(
             run_id TEXT PRIMARY KEY, workflow TEXT, topic TEXT, backend TEXT, profile TEXT,
             status TEXT, completeness TEXT, ready INTEGER, seconds INTEGER, chars INTEGER,
-            cost REAL, stages_json TEXT, review TEXT, ts TEXT, ts_epoch REAL)""")
+            cost REAL, balance REAL, per_model_json TEXT, stages_json TEXT, output TEXT, review TEXT, ts TEXT, ts_epoch REAL)""")
+        for col, typ in (("balance", "REAL"), ("per_model_json", "TEXT"), ("output", "TEXT")):
+            try:
+                c.execute(f"ALTER TABLE runs ADD COLUMN {col} {typ}")
+            except Exception:
+                pass
         c.execute("""CREATE TABLE IF NOT EXISTS activity(
             id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, actor TEXT,
             action TEXT, entity TEXT, detail TEXT)""")
@@ -65,12 +73,13 @@ def _migrate_runs_json():
 def save_run(rec: dict):
     row = {"run_id": None, "workflow": None, "topic": None, "backend": None, "profile": None,
            "status": None, "completeness": None, "ready": 0, "seconds": 0, "chars": 0,
-           "cost": 0.0, "stages_json": None, "review": None, "ts": None, "ts_epoch": time.time()}
+           "cost": 0.0, "balance": None, "per_model_json": None, "stages_json": None, "output": None,
+           "review": None, "ts": None, "ts_epoch": time.time()}
     row.update({k: v for k, v in rec.items() if k in row})
     with _lock, _conn() as c:
         c.execute("""INSERT OR REPLACE INTO runs
-            (run_id,workflow,topic,backend,profile,status,completeness,ready,seconds,chars,cost,stages_json,review,ts,ts_epoch)
-            VALUES(:run_id,:workflow,:topic,:backend,:profile,:status,:completeness,:ready,:seconds,:chars,:cost,:stages_json,:review,:ts,:ts_epoch)""", row)
+            (run_id,workflow,topic,backend,profile,status,completeness,ready,seconds,chars,cost,balance,per_model_json,stages_json,output,review,ts,ts_epoch)
+            VALUES(:run_id,:workflow,:topic,:backend,:profile,:status,:completeness,:ready,:seconds,:chars,:cost,:balance,:per_model_json,:stages_json,:output,:review,:ts,:ts_epoch)""", row)
 
 
 def load_runs(limit=100):

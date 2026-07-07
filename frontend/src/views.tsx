@@ -4,6 +4,30 @@ import { Card } from "./ui";
 
 const fmtT = (s: number) => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
 const clean = (v: string) => (!v || v === "n/a" || v === "0") ? "—" : v;
+const num = (v: any) => v == null ? "—" : Number(v).toLocaleString("ru", { maximumFractionDigits: 2 });
+
+// лёгкий рендер markdown-черновика без зависимостей (заголовки/списки/жирный)
+function inline(s: string) {
+  return s.split(/(\*\*[^*]+\*\*)/g).map((p, i) =>
+    p.startsWith("**") && p.endsWith("**") ? <b key={i}>{p.slice(2, -2)}</b> : <span key={i}>{p}</span>);
+}
+function Draft({ text }: { text: string }) {
+  return (
+    <div className="text-[13.5px] leading-[1.72] text-ink">
+      {text.split("\n").map((ln, i) => {
+        const h = ln.match(/^(#{1,4})\s+(.*)/);
+        if (h) {
+          const lvl = h[1].length;
+          const sz = lvl === 1 ? "text-[18px]" : lvl === 2 ? "text-[16px]" : "text-[14.5px]";
+          return <div key={i} className={"font-semibold mt-3.5 mb-1 " + sz}>{inline(h[2])}</div>;
+        }
+        if (/^\s*[-*]\s+/.test(ln)) return <div key={i} className="pl-4 -indent-2 mb-1">• {inline(ln.replace(/^\s*[-*]\s+/, ""))}</div>;
+        if (!ln.trim()) return <div key={i} className="h-2.5" />;
+        return <div key={i} className="mb-1.5">{inline(ln)}</div>;
+      })}
+    </div>
+  );
+}
 
 export function Schedule() {
   const [d, setD] = useState<any>(null);
@@ -90,10 +114,26 @@ export function RunsView({ runs }: any) {
         {!sel ? <div className="text-[13px] text-faint py-2">выбери прогон слева</div> : (
           <div className="text-[13.5px]">
             <div className="font-medium mb-3">{sel.topic}</div>
-            {[["workflow", sel.workflow], ["шлюз", sel.backend], ["профиль", sel.profile], ["статус", sel.status], ["результат", sel.completeness], ["время", fmtT(sel.seconds || 0)], ["стоимость", sel.cost ? "₽ " + sel.cost : "—"], ["когда", sel.ts], ["run_id", sel.run_id]].map(([k, v]: any) => (
+            {[["workflow", sel.workflow], ["шлюз", sel.backend], ["профиль", sel.profile], ["статус", sel.status], ["результат", sel.completeness], ["время", fmtT(sel.seconds || 0)], ["стоимость", sel.cost ? sel.cost + " ₽" : "—"], ["баланс после", sel.balance != null ? Math.round(sel.balance) + " ₽" : "—"], ["когда", sel.ts], ["run_id", sel.run_id]].map(([k, v]: any) => (
               <div key={k} className="flex justify-between py-1.5 border-b border-line last:border-0"><span className="text-muted">{k}</span><span className="font-medium font-mono text-[12.5px]">{String(v ?? "—")}</span></div>
             ))}
-            {sel.stages_json && <div className="mt-3"><div className="text-[12px] text-faint mb-1">стадии</div><div className="text-[12px] font-mono text-muted">{(JSON.parse(sel.stages_json || "[]") || []).join("  ·  ")}</div></div>}
+            {sel.stages_json && (() => {
+              let st: any[] = []; try { st = JSON.parse(sel.stages_json) || []; } catch (e) { st = []; }
+              if (!st.length || typeof st[0] !== "object") return null;
+              return (
+                <div className="mt-3">
+                  <div className="text-[12px] text-faint mb-1.5">по агентам (токены in→out · ₽)</div>
+                  <div className="flex flex-col gap-1">
+                    {st.map((s: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between text-[12px] py-1 border-b border-line last:border-0">
+                        <span className="truncate">{s.stage}</span>
+                        <span className="font-mono text-muted whitespace-nowrap">{(s.in || 0).toLocaleString("ru")}→{(s.out || 0).toLocaleString("ru")} · {s.cost_rub ? s.cost_rub + " ₽" : "—"}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
       </Card>
@@ -104,10 +144,24 @@ export function RunsView({ runs }: any) {
 export function ApprovalsView({ run, runs, onRefresh }: any) {
   const pending = run.status === "gate";
   const review = (runs || []).filter((r: any) => r.status === "awaiting_review");
-  const decide = async (rid: string, decision: string) => { await post(`/api/runs/${rid}/review`, { decision }); onRefresh && onRefresh(); };
+  const [sel, setSel] = useState<any>(null);
+  const [draft, setDraft] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const open = async (r: any) => {
+    setSel(r); setDraft(""); setLoading(true); setCopied(false);
+    try { const d = await json(`/api/runs/${r.run_id}/content`); setDraft(d?.content || ""); }
+    catch { setDraft(""); }
+    setLoading(false);
+  };
+  const decide = async (rid: string, decision: string) => {
+    await post(`/api/runs/${rid}/review`, { decision });
+    setSel(null); setDraft(""); onRefresh && onRefresh();
+  };
+  const copy = () => { try { navigator.clipboard.writeText(draft); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* clipboard недоступен */ } };
   return (
-    <>
-      <Card title="Согласования и ревью" icon="ti-checkup" sub="точки контроля человека">
+    <div className="grid lg:grid-cols-[1fr_1.35fr] gap-4 items-start">
+      <Card title="Согласования и ревью" icon="ti-checkup" sub="точки контроля человека — кликни черновик для предпросмотра">
         {pending && (
           <div className="border rounded-[12px] px-4 py-3.5 mb-3" style={{ borderColor: "rgba(217,138,22,.4)", background: "rgba(217,138,22,.09)" }}>
             <div className="flex items-center justify-between gap-2.5 flex-wrap">
@@ -123,18 +177,40 @@ export function ApprovalsView({ run, runs, onRefresh }: any) {
         <div className="flex flex-col gap-2.5">
           {!review.length && <div className="text-[13px] text-faint py-1">нет черновиков на ревью</div>}
           {review.map((r: any, i: number) => (
-            <div key={i} className="flex items-center justify-between gap-2.5 bg-surface border border-line rounded-[11px] px-3.5 py-2.5 text-[13px]">
+            <div key={i} onClick={() => open(r)}
+              className={"flex items-center justify-between gap-2.5 border rounded-[11px] px-3.5 py-2.5 text-[13px] cursor-pointer " + (sel?.run_id === r.run_id ? "border-purple bg-purple/5" : "border-line bg-surface hover:border-teal")}>
               <span className="truncate flex-1">{r.topic}</span>
-              <span className="flex gap-1.5 shrink-0">
-                <button onClick={() => decide(r.run_id, "accept")} className="h-7 px-2.5 rounded-[8px] text-[12px] font-medium bg-good/12 text-good hover:bg-good/20"><i className="ti ti-check mr-1" aria-hidden="true"></i>принять</button>
-                <button onClick={() => decide(r.run_id, "rework")} className="h-7 px-2.5 rounded-[8px] text-[12px] font-medium bg-bg2 text-muted hover:text-amber"><i className="ti ti-rotate mr-1" aria-hidden="true"></i>доработать</button>
-              </span>
+              <span className="text-[11.5px] text-faint whitespace-nowrap flex items-center gap-1.5">{r.cost ? num(r.cost) + " ₽" : ""}<i className="ti ti-chevron-right" aria-hidden="true"></i></span>
             </div>
           ))}
         </div>
         <div className="text-[12.5px] text-faint mt-3 leading-relaxed">Дубль кнопок в VK Workspace бот (согласование прямо в мессенджере) — Фаза 3.</div>
       </Card>
-    </>
+      <Card title="Предпросмотр черновика" icon="ti-eye">
+        {!sel ? <div className="text-[13px] text-faint py-2">выбери черновик слева — покажу текст статьи для вычитки</div> : (
+          <div>
+            <div className="flex items-start justify-between gap-2 flex-wrap mb-2">
+              <div className="font-medium text-[14.5px] flex-1 min-w-[160px]">{sel.topic}</div>
+              <span className="flex gap-1.5 shrink-0">
+                <button onClick={() => decide(sel.run_id, "accept")} className="h-8 px-3 rounded-[9px] text-white text-[12.5px] font-medium flex items-center gap-1" style={{ background: "linear-gradient(135deg,#0FB39A,#6D5AE6)" }}><i className="ti ti-check" aria-hidden="true"></i>принять</button>
+                <button onClick={() => decide(sel.run_id, "rework")} className="h-8 px-3 rounded-[9px] border border-line bg-surface text-[12.5px] flex items-center gap-1 hover:text-amber"><i className="ti ti-rotate" aria-hidden="true"></i>доработать</button>
+              </span>
+            </div>
+            <div className="flex items-center gap-2.5 text-[12px] text-faint mb-3 flex-wrap">
+              <span>{sel.backend} · {sel.profile}</span>
+              {sel.cost ? <span>· {num(sel.cost)} ₽</span> : null}
+              {draft ? <span>· {draft.length.toLocaleString("ru")} символов</span> : null}
+              {draft ? <button onClick={copy} className="ml-auto text-teal hover:underline flex items-center gap-1"><i className={"ti " + (copied ? "ti-check" : "ti-copy")} aria-hidden="true"></i>{copied ? "скопировано" : "копировать"}</button> : null}
+            </div>
+            <div className="border border-line rounded-[12px] p-4 max-h-[540px] overflow-auto bg-surface">
+              {loading ? <div className="text-faint text-[13px]">загрузка…</div>
+                : draft ? <Draft text={draft} />
+                : <div className="text-faint text-[13px] leading-relaxed">Текст пуст. На echo-демо статья не пишется — здесь появится готовая статья после реального прогона через AITunnel.</div>}
+            </div>
+          </div>
+        )}
+      </Card>
+    </div>
   );
 }
 
@@ -168,6 +244,18 @@ export function Settings({ onSaved }: any) {
             </select>
           </label>
         </div>
+        <div className="grid md:grid-cols-2 gap-4 mt-4">
+          <label className="block">
+            <div className="text-[13px] text-muted mb-1.5">кап стоимости прогона, ₽ <span className="text-faint">(обрыв при превышении)</span></div>
+            <input type="number" min="1" value={s.max_cost_per_run_rub ?? 30} onChange={(e) => save({ max_cost_per_run_rub: Number(e.target.value) })}
+              className="w-full h-10 border border-line bg-surface rounded-[11px] px-3 text-[14px]" />
+          </label>
+          <label className="block">
+            <div className="text-[13px] text-muted mb-1.5">max_tokens на вызов</div>
+            <input type="number" min="256" step="256" value={s.max_tokens ?? 3000} onChange={(e) => save({ max_tokens: Number(e.target.value) })}
+              className="w-full h-10 border border-line bg-surface rounded-[11px] px-3 text-[14px]" />
+          </label>
+        </div>
         <div className="flex flex-col gap-2.5 mt-4">
           <label className="flex items-center justify-between bg-surface border border-line rounded-[11px] px-3.5 py-3 cursor-pointer">
             <span className="text-[13.5px]"><i className="ti ti-robot mr-2 text-purple" aria-hidden="true"></i>автопилот — планировщик сам берёт одобренные идеи и генерит</span>
@@ -193,6 +281,81 @@ export function Settings({ onSaved }: any) {
           ))}
         </div>
       </Card>
+    </>
+  );
+}
+
+function BudgetTile({ icon, k, v, sub, accent }: any) {
+  return (
+    <div className={"border rounded-[14px] px-4 py-3.5 " + (accent ? "border-danger/40 bg-danger/5" : "border-line bg-surface")}>
+      <div className="text-[12.5px] text-muted flex items-center gap-1.5"><i className={"ti " + icon} aria-hidden="true"></i>{k}</div>
+      <div className="text-[26px] font-semibold tracking-tight mt-0.5">{v}</div>
+      {sub ? <div className="text-[11.5px] text-faint mt-0.5">{sub}</div> : null}
+    </div>
+  );
+}
+
+export function BudgetView({ runs, balance, stats, settings }: any) {
+  const s = stats || {};
+  const low = settings?.low_balance_rub ?? 100;
+  const alert = balance != null && balance < low;
+  const costRuns = (runs || []).filter((r: any) => (r.cost || 0) > 0);
+  const totalPlatform = costRuns.reduce((a: number, r: any) => a + (r.cost || 0), 0);
+  const perModel: Record<string, any> = {};
+  costRuns.forEach((r: any) => {
+    try {
+      const pm = JSON.parse(r.per_model_json || "{}");
+      Object.entries(pm).forEach(([m, v]: any) => {
+        const x = perModel[m] || (perModel[m] = { calls: 0, cost: 0, tok: 0 });
+        x.calls += v.calls || 0; x.cost += v.cost_rub || 0; x.tok += (v.in || 0) + (v.out || 0);
+      });
+    } catch { /* нет разбивки */ }
+  });
+  const models = Object.entries(perModel).sort((a: any, b: any) => b[1].cost - a[1].cost);
+  const maxCost = Math.max(1, ...costRuns.map((r: any) => r.cost || 0));
+  return (
+    <>
+      {alert && (
+        <div className="mb-4 border rounded-[12px] px-4 py-3 flex items-center gap-2 text-[13.5px]" style={{ borderColor: "rgba(199,58,58,.35)", background: "rgba(199,58,58,.08)", color: "#b03636" }}>
+          <i className="ti ti-alert-triangle" aria-hidden="true"></i>Низкий баланс AITunnel: {num(balance)} ₽ (порог {low} ₽). Пополни баланс или держи прогоны на echo.
+        </div>
+      )}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-4">
+        <BudgetTile icon="ti-wallet" k="баланс AITunnel" v={<>{num(balance)} <small>₽</small></>} accent={alert} />
+        <BudgetTile icon="ti-coins" k="расход сегодня" v={<>{num(s.today_spend)} <small>₽</small></>} sub={s.today_requests != null ? `${s.today_requests} запросов` : ""} />
+        <BudgetTile icon="ti-calendar-month" k="расход за месяц" v={<>{num(s.month_spend)} <small>₽</small></>} sub={s.month_requests != null ? `${s.month_requests} запросов` : ""} />
+        <BudgetTile icon="ti-chart-line" k="средн. в день" v={<>{num(s.avg_daily_spend)} <small>₽</small></>} />
+      </div>
+      <div className="grid lg:grid-cols-2 gap-4 items-start">
+        <Card title="Стоимость прогонов платформы" icon="ti-history" sub={`${costRuns.length} платных прогонов · всего ${num(totalPlatform)} ₽`}>
+          {!costRuns.length ? <div className="text-[13px] text-faint py-2">платных прогонов ещё не было — на echo стоимость нулевая</div> : (
+            <div className="flex flex-col gap-2.5">
+              {costRuns.slice(0, 14).map((r: any, i: number) => (
+                <div key={i} className="text-[12.5px]">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate flex-1">{r.topic}</span>
+                    <span className="font-mono whitespace-nowrap text-muted">{num(r.cost)} ₽<span className="text-faint"> · {r.ts}</span></span>
+                  </div>
+                  <div className="h-[6px] bg-bg2 rounded-full overflow-hidden mt-1"><div className="h-full rounded-full" style={{ width: Math.round((r.cost / maxCost) * 100) + "%", background: "linear-gradient(90deg,#0FB39A,#6D5AE6)" }} /></div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+        <Card title="Расход по моделям" icon="ti-cpu" sub="агрегировано по прогонам платформы">
+          {!models.length ? <div className="text-[13px] text-faint py-2">нет данных — разбивка появится после реальных прогонов (на echo модели не тарифицируются)</div> : (
+            <div className="flex flex-col gap-1.5">
+              {models.map(([m, v]: any, i: number) => (
+                <div key={i} className="flex items-center justify-between text-[12.5px] py-1.5 border-b border-line last:border-0 gap-2">
+                  <span className="font-mono truncate flex-1">{m}</span>
+                  <span className="text-muted whitespace-nowrap">{v.calls} выз. · {v.tok.toLocaleString("ru")} ток · <b className="text-ink">{num(v.cost)} ₽</b></span>
+                </div>
+              ))}
+              {s.top_model_by_spend && <div className="text-[12px] text-faint mt-2">топ модель по расходу (AITunnel): <span className="font-mono">{typeof s.top_model_by_spend === "object" ? JSON.stringify(s.top_model_by_spend) : s.top_model_by_spend}</span></div>}
+            </div>
+          )}
+        </Card>
+      </div>
     </>
   );
 }

@@ -24,6 +24,9 @@ export function useRun() {
   const [elapsed, setElapsed] = useState(0);
   const [chars, setChars] = useState(0);
   const [result, setResult] = useState<any>(null);
+  const [metrics, setMetrics] = useState<Record<string, any>>({});
+  const [cost, setCost] = useState(0);
+  const [balance, setBalance] = useState<number | null>(null);
   const [topic, setTopic] = useState("Как выбрать облачную СУБД: PostgreSQL vs Tarantool");
 
   const ws = useRef<WebSocket | null>(null);
@@ -34,7 +37,7 @@ export function useRun() {
 
   const reset = () => {
     setStages(Object.fromEntries(IDS.map((id) => [id, "pending"])) as any);
-    setLogs([]); setElapsed(0); setChars(0); setResult(null);
+    setLogs([]); setElapsed(0); setChars(0); setResult(null); setMetrics({}); setCost(0);
   };
 
   const approve = useCallback(() => { if (gate.current) { gate.current(); gate.current = null; } }, []);
@@ -70,6 +73,11 @@ export function useRun() {
     } else if (ev.type === "done") {
       setStages((s) => { const n = { ...s }; IDS.forEach((id) => { if (n[id] !== "skip") n[id] = "done"; }); return n; });
       setResult(ev.result); setStatus("done"); clearInterval(timer.current);
+      const m: Record<string, any> = {};
+      (ev.result?.stage_metrics || []).forEach((s: any) => { m[s.stage] = s; });
+      setMetrics(m);
+      if (ev.result?.cost_rub != null) setCost(ev.result.cost_rub);
+      if (ev.result?.balance != null) setBalance(ev.result.balance);
     } else if (ev.type === "error") {
       setLogs((l) => [...l, { line: "ОШИБКА: " + ev.message }]); setStatus("error"); clearInterval(timer.current);
     }
@@ -103,5 +111,5 @@ export function useRun() {
     sock.onerror = () => { queue.current.push({ type: "error", message: "нет связи с сервером" }); playLoop(); };
   }, [status, topic]);
 
-  return { status, stages, logs, elapsed, chars, result, topic, setTopic, start, approve };
+  return { status, stages, logs, elapsed, chars, result, metrics, cost, balance, topic, setTopic, start, approve };
 }

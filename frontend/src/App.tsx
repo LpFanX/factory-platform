@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useRun, json, STAGES } from "./api";
 import Pipeline from "./Pipeline";
 import { Header, Metrics, AgentPanel, IdeaBank, RunsHistory, Card } from "./ui";
-import { Schedule, RunsView, ApprovalsView, Settings } from "./views";
+import { Schedule, RunsView, ApprovalsView, Settings, BudgetView } from "./views";
 
 const fmtT = (s: number) => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
 const progressPct = (stages: any) => {
@@ -25,6 +25,7 @@ const TABS = [
   { id: "dashboard", label: "Дашборд", icon: "ti-layout-dashboard" },
   { id: "schedule", label: "Расписание", icon: "ti-calendar-clock" },
   { id: "runs", label: "Прогоны", icon: "ti-history" },
+  { id: "budget", label: "Расходы", icon: "ti-coins" },
   { id: "approvals", label: "Согласования", icon: "ti-checkup" },
   { id: "settings", label: "Настройки", icon: "ti-settings" },
 ];
@@ -35,6 +36,8 @@ export default function App() {
   const [ideas, setIdeas] = useState<any[]>([]);
   const [runs, setRuns] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>({ backend: "echo" });
+  const [aiBalance, setAiBalance] = useState<number | null>(null);
+  const [aiStats, setAiStats] = useState<any>({});
   const [selected, setSelected] = useState(STAGES[0].id);
   const [backend, setBackend] = useState("echo");
   const [view, setView] = useState("dashboard");
@@ -44,6 +47,8 @@ export default function App() {
     json("/api/ideas").then((d) => setIdeas(Array.isArray(d) ? d : [])).catch(() => {});
     json("/api/runs").then((d) => setRuns(Array.isArray(d) ? d : [])).catch(() => {});
     json("/api/settings").then((s) => { setSettings(s); setBackend(s.backend || "echo"); }).catch(() => {});
+    json("/api/aitunnel/balance").then((d) => setAiBalance(typeof d?.balance === "number" ? d.balance : null)).catch(() => {});
+    json("/api/aitunnel/stats").then(setAiStats).catch(() => {});
   };
   useEffect(() => { refresh(); }, []);
   useEffect(() => { if (run.status === "done") refresh(); }, [run.status]);
@@ -58,7 +63,7 @@ export default function App() {
 
   return (
     <div className="max-w-[1160px] mx-auto px-5 pt-6 pb-16">
-      <Header engine={engine} />
+      <Header engine={engine} balance={aiBalance} />
 
       <nav className="flex gap-1.5 mb-5 flex-wrap">
         {TABS.map((t) => {
@@ -77,7 +82,7 @@ export default function App() {
 
       {view === "dashboard" && (
         <>
-          <Metrics runsToday={runsToday} avg={avg} ideas={ideas.length} backend={backend === "echo" ? "echo" : "AITunnel"} />
+          <Metrics runsToday={runsToday} avg={avg} ideas={ideas.length} todaySpend={aiStats.today_spend} />
           <div className="grid lg:grid-cols-[1.55fr_1fr] gap-4 items-start">
             <Card title="Конвейер агентов" icon="ti-route" sub="запусти прогон — стадии оживают в реальном времени; кликни агента для лога и метрик">
               <div className="flex gap-2.5 items-center mb-4 flex-wrap">
@@ -116,7 +121,7 @@ export default function App() {
                 </div>
               )}
             </Card>
-            <AgentPanel selected={selected} stages={run.stages} logs={run.logs} chars={run.chars} />
+            <AgentPanel selected={selected} stages={run.stages} logs={run.logs} metrics={run.metrics} />
           </div>
           <div className="grid lg:grid-cols-2 gap-4 mt-4">
             <IdeaBank ideas={ideas} onRefresh={refresh} />
@@ -127,6 +132,7 @@ export default function App() {
 
       {view === "schedule" && <Schedule />}
       {view === "runs" && <RunsView runs={runs} />}
+      {view === "budget" && <BudgetView runs={runs} balance={aiBalance} stats={aiStats} settings={settings} />}
       {view === "approvals" && <ApprovalsView run={run} runs={runs} onRefresh={refresh} />}
       {view === "settings" && <Settings onSaved={refresh} />}
     </div>

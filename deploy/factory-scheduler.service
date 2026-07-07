@@ -7,4 +7,8 @@ Wants=network-online.target
 Type=oneshot
 User=ubuntu
 Environment=HOME=/home/ubuntu
+Environment=CONTENT_AGENTS_DATA=/home/ubuntu/factory-data
+Environment=ENGINE_DIR=/home/ubuntu/content-agents
+# ключ/base_url/карту тиров наследуем от systemd (без brace-expansion, в отличие от `. .env`)
+EnvironmentFile=-/home/ubuntu/factory/.env
 ExecStart=/home/ubuntu/factory/factory.sh

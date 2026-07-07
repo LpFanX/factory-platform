@@ -12,6 +12,7 @@ import uuid
 import asyncio
 import pathlib
 import subprocess
+import urllib.request
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
@@ -137,6 +138,12 @@ def api_run_detail(rid: str):
     return r or JSONResponse({"error": "not found"}, status_code=404)
 
 
+@app.get("/api/runs/{rid}/content")
+def api_run_content(rid: str):
+    r = store.get_run(rid) or {}
+    return {"content": r.get("output") or "", "topic": r.get("topic")}
+
+
 @app.get("/api/workflows/{wid}")
 def api_workflow(wid):
     return {"id": wid, "stages": SEO_STAGES, "labels": STAGE_RU}
@@ -150,6 +157,29 @@ def api_get_settings():
 @app.get("/api/activity")
 def api_activity():
     return store.get_activity()
+
+
+def _aitunnel_get(path: str):
+    key = os.environ.get("OPENAI_API_KEY")
+    base = (os.environ.get("LLM_BASE_URL") or "https://api.aitunnel.ru/v1").rstrip("/")
+    if not key:
+        return {"error": "no key"}
+    try:
+        req = urllib.request.Request(base + path, headers={"Authorization": "Bearer " + key})
+        with urllib.request.urlopen(req, timeout=12) as r:
+            return json.loads(r.read().decode("utf-8"))
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/aitunnel/balance")
+def api_ai_balance():
+    return _aitunnel_get("/aitunnel/balance")
+
+
+@app.get("/api/aitunnel/stats")
+def api_ai_stats():
+    return _aitunnel_get("/aitunnel/stats/summary")
 
 
 @app.get("/api/schedule")
@@ -262,9 +292,10 @@ async def run_ws(ws: WebSocket):
     started = time.time()
     stage_events: list = []
 
-    cmd = [PYBIN, "-m", "backend.codex_runner", "--workflow", wf, "--backend", backend,
-           "--autofill", "--profile", profile,
-           "--prefill-json", json.dumps({"topic": topic}, ensure_ascii=False), "--json"]
+    cmd = [PYBIN, str(FACTORY / "server" / "run_agent.py"), "--workflow", wf,
+           "--backend", backend, "--profile", profile, "--topic", topic,
+           "--max-cost-rub", str(settings.get("max_cost_per_run_rub", 30)),
+           "--max-tokens", str(settings.get("max_tokens", 3000))]
     if backend != "echo" and LLM_BASE_URL:
         cmd += ["--base-url", LLM_BASE_URL]
 
@@ -305,19 +336,37 @@ async def run_ws(ws: WebSocket):
         review_required = store.get_settings()["review_required"]
         status = ("awaiting_review" if review_required else "done") if ready else "failed"
         seconds = round(time.time() - started)
-        cost = float(result.get("total_cost") or result.get("cost") or 0) or 0.0
-        chars = 0
+        ai = result.get("aitunnel") or {}
+        cost_rub = float(ai.get("cost_rub_total") or 0) or 0.0
+        balance = ai.get("balance")
+        per_model = ai.get("per_model") or {}
+        rate = {}
+        for mdl, mm in per_model.items():
+            toks = (mm.get("in") or 0) + (mm.get("out") or 0)
+            rate[mdl] = (mm.get("cost_rub") or 0) / toks if toks else 0.0
+        pstages = ((result.get("pipeline") or {}).get("stages")) or []
+        stage_metrics = []
+        total_chars = 0
+        for s in pstages:
+            it, ot, mdl = s.get("input_tokens"), s.get("output_tokens"), s.get("model")
+            toks = (it or 0) + (ot or 0)
+            total_chars += s.get("output_chars") or 0
+            stage_metrics.append({"stage": s.get("agent") or s.get("name"), "model": mdl,
+                                  "in": it, "out": ot, "cost_rub": round(toks * rate.get(mdl, 0.0), 4) if toks else 0.0})
         store.save_run({
             "run_id": run_id, "workflow": wf, "topic": topic, "backend": backend, "profile": profile,
             "status": status, "completeness": result.get("execution_completeness"), "ready": 1 if ready else 0,
-            "seconds": seconds, "chars": chars, "cost": cost,
-            "stages_json": json.dumps([f"{e['stage']}:{e['status']}" for e in stage_events], ensure_ascii=False),
+            "seconds": seconds, "chars": total_chars, "cost": cost_rub, "balance": balance,
+            "stages_json": json.dumps(stage_metrics, ensure_ascii=False),
+            "per_model_json": json.dumps(per_model, ensure_ascii=False),
+            "output": result.get("final_output"),
             "ts": time.strftime("%Y-%m-%d %H:%M"), "ts_epoch": time.time(),
         })
-        store.log_activity("run_finished", "run", f"{run_id}: {status}")
+        store.log_activity("run_finished", "run", f"{run_id}: {status} · {cost_rub} ₽")
         await ws.send_json({"type": "done", "result": {
             "completeness": result.get("execution_completeness"), "ready": ready,
-            "seconds": seconds, "status": status, "run_id": run_id}})
+            "seconds": seconds, "status": status, "run_id": run_id,
+            "cost_rub": cost_rub, "balance": balance, "stage_metrics": stage_metrics}})
     except WebSocketDisconnect:
         try:
             proc.kill()

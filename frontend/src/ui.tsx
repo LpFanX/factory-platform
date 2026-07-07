@@ -17,7 +17,7 @@ export function Card({ title, icon, sub, children, className = "" }: any) {
   );
 }
 
-export function Header({ engine }: any) {
+export function Header({ engine, balance }: any) {
   const e = engine || {};
   return (
     <header className="flex items-center justify-between gap-4 flex-wrap mb-6">
@@ -31,12 +31,20 @@ export function Header({ engine }: any) {
           <div className="text-[12.5px] text-muted mt-0.5">автономная генерация · VK Cloud</div>
         </div>
       </div>
-      <div className="flex items-center gap-2 bg-surface border border-line rounded-full px-3.5 py-2 text-[12.5px]" title="версия движка агентов (обновляется с git)">
-        <span className="w-2 h-2 rounded-full bg-good" style={{ boxShadow: "0 0 0 3px rgba(44,158,104,.18)" }}></span>
-        <span className="text-muted">движок</span>
-        <b className="font-semibold">v{e.version || "…"}</b>
-        <span className="font-mono text-faint text-[12px]">{e.sha}</span>
-        {e.pulled && <span className="text-faint">· обновлён {String(e.pulled).slice(11, 16)}</span>}
+      <div className="flex items-center gap-2 flex-wrap">
+        {balance != null && (
+          <div className="flex items-center gap-1.5 bg-surface border border-line rounded-full px-3.5 py-2 text-[12.5px]" title="баланс AITunnel">
+            <i className="ti ti-wallet text-teal" aria-hidden="true"></i><span className="text-muted">баланс</span>
+            <b className="font-semibold">{Math.round(balance).toLocaleString("ru")} ₽</b>
+          </div>
+        )}
+        <div className="flex items-center gap-2 bg-surface border border-line rounded-full px-3.5 py-2 text-[12.5px]" title="версия движка агентов (обновляется с git)">
+          <span className="w-2 h-2 rounded-full bg-good" style={{ boxShadow: "0 0 0 3px rgba(44,158,104,.18)" }}></span>
+          <span className="text-muted">движок</span>
+          <b className="font-semibold">v{e.version || "…"}</b>
+          <span className="font-mono text-faint text-[12px]">{e.sha}</span>
+          {e.pulled && <span className="text-faint">· обновлён {String(e.pulled).slice(11, 16)}</span>}
+        </div>
       </div>
     </header>
   );
@@ -50,32 +58,35 @@ function Metric({ icon, k, v }: any) {
     </div>
   );
 }
-export function Metrics({ runsToday, avg, ideas, backend }: any) {
+export function Metrics({ runsToday, avg, ideas, todaySpend }: any) {
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-5">
       <Metric icon="ti-checklist" k="прогонов сегодня" v={runsToday} />
       <Metric icon="ti-clock" k="среднее время" v={avg} />
       <Metric icon="ti-bulb" k="в очереди идей" v={ideas} />
-      <Metric icon="ti-plug-connected" k="шлюз" v={backend} />
+      <Metric icon="ti-coins" k="расход сегодня" v={<>{Math.round(todaySpend || 0).toLocaleString("ru")} <small>₽</small></>} />
     </div>
   );
 }
 
-export function AgentPanel({ selected, stages, logs, chars }: { selected: string; stages: any; logs: LogLine[]; chars: number }) {
+export function AgentPanel({ selected, stages, logs, metrics }: { selected: string; stages: any; logs: LogLine[]; metrics?: any }) {
   const meta = STAGES.find((s) => s.id === selected);
   const st = stages[selected];
   const stTxt = st === "done" ? "готово" : st === "active" ? "работает" : st === "skip" ? "пропущен" : "ожидание";
   const rows = logs.filter((l) => !selected || l.stage === selected || !l.stage);
+  const m = (metrics || {})[selected] || {};
+  const toks = (m.in != null || m.out != null) ? `${(m.in || 0).toLocaleString("ru")} → ${(m.out || 0).toLocaleString("ru")}` : "—";
   return (
     <Card>
       <div className="flex items-center gap-2 text-[14px] font-semibold">
         <i className="ti ti-terminal-2 text-purple" aria-hidden="true"></i>
         <span>{meta ? meta.label : "Агент"}</span>
       </div>
-      <div className="text-[12.5px] text-muted mb-3">{meta ? "стадия конвейера · " + meta.id : "кликни узел конвейера"}</div>
-      <div className="grid grid-cols-2 gap-2.5 mb-3.5">
-        <div className="bg-surface border border-line rounded-[11px] px-3 py-2"><div className="text-[11.5px] text-faint">статус</div><div className="text-[16px] font-semibold mt-0.5">{stTxt}</div></div>
-        <div className="bg-surface border border-line rounded-[11px] px-3 py-2"><div className="text-[11.5px] text-faint">символов</div><div className="text-[16px] font-semibold font-mono mt-0.5">{chars ? chars.toLocaleString("ru") : "—"}</div></div>
+      <div className="text-[12.5px] text-muted mb-3">{m.model ? <>модель <span className="font-mono">{m.model}</span></> : (meta ? "стадия · " + meta.id : "кликни узел конвейера")}</div>
+      <div className="grid grid-cols-3 gap-2.5 mb-3.5">
+        <div className="bg-surface border border-line rounded-[11px] px-3 py-2"><div className="text-[11.5px] text-faint">статус</div><div className="text-[15px] font-semibold mt-0.5">{stTxt}</div></div>
+        <div className="bg-surface border border-line rounded-[11px] px-3 py-2"><div className="text-[11.5px] text-faint">токены in→out</div><div className="text-[13px] font-semibold font-mono mt-0.5">{toks}</div></div>
+        <div className="bg-surface border border-line rounded-[11px] px-3 py-2"><div className="text-[11.5px] text-faint">стоимость</div><div className="text-[15px] font-semibold mt-0.5">{m.cost_rub ? m.cost_rub + " ₽" : "—"}</div></div>
       </div>
       <div className="logbox rounded-[12px] p-3.5 h-[250px] overflow-auto font-mono text-[12px] leading-[1.65]" style={{ background: "#1c1a15", color: "#d7cfbf" }}>
         {rows.length ? rows.map((l, i) => {
