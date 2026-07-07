@@ -12,6 +12,7 @@ Environment=CONTENT_AGENTS_DATA=/home/ubuntu/factory-data
 Environment=PYBIN=/home/ubuntu/factory/.venv/bin/python
 Environment=LLM_BACKEND=echo
 Environment=RUN_PROFILE=standard
+EnvironmentFile=-/home/ubuntu/factory/.env
 # Для реального шлюза позже:
 #   Environment=LLM_BACKEND=openai
 #   Environment=LLM_BASE_URL=https://api.proxyapi.ru/openai/v1
