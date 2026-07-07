@@ -119,7 +119,7 @@ def main():
     store.log_activity("autopilot_run", "run", f"{run_id}: {status} · {round(cost['cost_rub_total'],2)} ₽ · {topic}")
     # идея обработана — done (не зациклится на следующем тике)
     try:
-        ib.set_status(data, idea["id"], "done")
+        ib.set_status(data, idea["id"], "done", date=time.strftime("%Y-%m-%d"))
         ib.save_queue(data, QUEUE)
     except Exception as e:
         print("не смог пометить идею done:", e, flush=True)
