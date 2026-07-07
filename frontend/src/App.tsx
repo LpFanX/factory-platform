@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useRun, json, STAGES } from "./api";
 import Pipeline from "./Pipeline";
 import { Header, Metrics, AgentPanel, IdeaBank, RunsHistory, Card } from "./ui";
-import { Schedule, RunsView, ApprovalsView, Settings, BudgetView } from "./views";
+import { ScheduleControls, RunsView, ApprovalsView, Settings, BudgetView, Logs } from "./views";
 
 const fmtT = (s: number) => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
 const progressPct = (stages: any) => {
@@ -22,13 +22,15 @@ const PILL: any = {
   error: ["ошибка", "bg-danger/15 text-danger"],
 };
 const TABS = [
-  { id: "dashboard", label: "Дашборд", icon: "ti-layout-dashboard" },
-  { id: "schedule", label: "Расписание", icon: "ti-calendar-clock" },
-  { id: "runs", label: "Прогоны", icon: "ti-history" },
-  { id: "budget", label: "Расходы", icon: "ti-coins" },
-  { id: "approvals", label: "Согласования", icon: "ti-checkup" },
-  { id: "settings", label: "Настройки", icon: "ti-settings" },
+  { id: "dashboard", label: "Дашборд", icon: "ti-layout-dashboard", path: "/" },
+  { id: "runs", label: "Прогоны", icon: "ti-history", path: "/runs" },
+  { id: "budget", label: "Расходы", icon: "ti-coins", path: "/budget" },
+  { id: "approvals", label: "Согласования", icon: "ti-checkup", path: "/approvals" },
+  { id: "settings", label: "Настройки", icon: "ti-settings", path: "/settings" },
+  { id: "logs", label: "Logs", icon: "ti-list-details", path: "/logs" },
 ];
+const normPath = (p: string) => { const q = (p || "/").replace(/\/+$/, ""); return q === "" ? "/" : q; };
+const pathToView = (p: string) => (TABS.find((t) => t.path === normPath(p)) || TABS[0]).id;
 
 export default function App() {
   const run = useRun();
@@ -40,7 +42,7 @@ export default function App() {
   const [aiStats, setAiStats] = useState<any>({});
   const [selected, setSelected] = useState(STAGES[0].id);
   const [backend, setBackend] = useState("echo");
-  const [view, setView] = useState("dashboard");
+  const [view, setView] = useState<string>(() => pathToView(window.location.pathname));
 
   const refresh = () => {
     json("/api/engine").then(setEngine).catch(() => {});
@@ -52,6 +54,16 @@ export default function App() {
   };
   useEffect(() => { refresh(); }, []);
   useEffect(() => { if (run.status === "done") refresh(); }, [run.status]);
+  useEffect(() => {
+    const on = () => setView(pathToView(window.location.pathname));
+    window.addEventListener("popstate", on);
+    return () => window.removeEventListener("popstate", on);
+  }, []);
+  const navigate = (id: string) => {
+    const t = TABS.find((x) => x.id === id); if (!t) return;
+    if (normPath(window.location.pathname) !== t.path) window.history.pushState(null, "", t.path);
+    setView(id);
+  };
 
   const today = new Date().toISOString().slice(0, 10);
   const runsToday = runs.filter((r) => (r.ts || "").startsWith(today)).length || runs.length;
@@ -70,7 +82,7 @@ export default function App() {
           const on = view === t.id;
           const badge = (t.id === "approvals" && (gatePending || reviewCount)) ? (gatePending ? "•" : reviewCount) : null;
           return (
-            <button key={t.id} onClick={() => setView(t.id)}
+            <button key={t.id} onClick={() => navigate(t.id)}
               className={"h-9 px-3.5 rounded-[10px] text-[13.5px] font-medium flex items-center gap-1.5 border transition-colors " + (on ? "border-transparent text-white" : "border-line bg-surface text-muted hover:text-ink")}
               style={on ? { background: "linear-gradient(135deg,#0FB39A,#6D5AE6)" } : undefined}>
               <i className={"ti " + t.icon} aria-hidden="true"></i>{t.label}
@@ -130,11 +142,11 @@ export default function App() {
         </>
       )}
 
-      {view === "schedule" && <Schedule />}
       {view === "runs" && <RunsView runs={runs} />}
       {view === "budget" && <BudgetView runs={runs} balance={aiBalance} stats={aiStats} settings={settings} />}
       {view === "approvals" && <ApprovalsView run={run} runs={runs} onRefresh={refresh} />}
-      {view === "settings" && <Settings onSaved={refresh} />}
+      {view === "settings" && (<><Settings onSaved={refresh} /><div className="mt-4"><ScheduleControls /></div></>)}
+      {view === "logs" && <Logs />}
     </div>
   );
 }

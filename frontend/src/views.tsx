@@ -29,7 +29,7 @@ function Draft({ text }: { text: string }) {
   );
 }
 
-export function Schedule() {
+export function ScheduleControls() {
   const [d, setD] = useState<any>(null);
   const [busy, setBusy] = useState("");
   const load = () => json("/api/schedule").then(setD).catch(() => {});
@@ -85,11 +85,38 @@ export function Schedule() {
           ))}
         </div>
       </Card>
-      <Card title="Журналы" icon="ti-file-text" sub="обновление движка и автономные тики" className="mt-4">
+    </>
+  );
+}
+
+export function Logs() {
+  const [d, setD] = useState<any>(null);
+  const [act, setAct] = useState<any[]>([]);
+  const load = () => {
+    json("/api/schedule").then(setD).catch(() => {});
+    json("/api/activity").then((x) => setAct(Array.isArray(x) ? x : [])).catch(() => {});
+  };
+  useEffect(() => { load(); const t = setInterval(load, 15000); return () => clearInterval(t); }, []);
+  const box = "logbox rounded-[12px] p-3 max-h-[260px] overflow-auto font-mono text-[11.5px] leading-[1.55]";
+  return (
+    <>
+      <Card title="Журналы систем" icon="ti-file-text" sub="git-обновление движка и автономные тики планировщика">
         <div className="text-[12px] text-muted mb-1">git-обновление</div>
-        <div className="logbox rounded-[12px] p-3 max-h-[190px] overflow-auto font-mono text-[11.5px] leading-[1.55] mb-3" style={{ background: "#1c1a15", color: "#d7cfbf" }}><pre style={{ margin: 0, whiteSpace: "pre-wrap" }}>{d?.update_log || "— пусто —"}</pre></div>
+        <div className={box + " mb-3"} style={{ background: "#1c1a15", color: "#d7cfbf" }}><pre style={{ margin: 0, whiteSpace: "pre-wrap" }}>{d?.update_log || "— пусто —"}</pre></div>
         <div className="text-[12px] text-muted mb-1">автономный планировщик</div>
-        <div className="logbox rounded-[12px] p-3 max-h-[190px] overflow-auto font-mono text-[11.5px] leading-[1.55]" style={{ background: "#1c1a15", color: "#d7cfbf" }}><pre style={{ margin: 0, whiteSpace: "pre-wrap" }}>{d?.factory_log || "— пусто —"}</pre></div>
+        <div className={box} style={{ background: "#1c1a15", color: "#d7cfbf" }}><pre style={{ margin: 0, whiteSpace: "pre-wrap" }}>{d?.factory_log || "— пусто —"}</pre></div>
+      </Card>
+      <Card title="Журнал активности" icon="ti-list-details" sub="что происходило на платформе" className="mt-4">
+        <div className="flex flex-col gap-1.5 max-h-[380px] overflow-auto">
+          {!act.length && <div className="text-[13px] text-faint py-1">пусто</div>}
+          {act.map((a, i) => (
+            <div key={i} className="flex items-center gap-3 text-[12.5px] py-1.5 border-b border-line last:border-0">
+              <span className="text-faint font-mono whitespace-nowrap">{a.ts}</span>
+              <span className="font-medium text-purple whitespace-nowrap">{a.action}</span>
+              <span className="text-muted truncate">{a.detail}</span>
+            </div>
+          ))}
+        </div>
       </Card>
     </>
   );
@@ -217,9 +244,8 @@ export function ApprovalsView({ run, runs, onRefresh }: any) {
 const FIELDS: any = { backend: ["echo", "openai"], profile: ["economy", "standard", "full"] };
 export function Settings({ onSaved }: any) {
   const [s, setS] = useState<any>(null);
-  const [act, setAct] = useState<any[]>([]);
   const [saved, setSaved] = useState(false);
-  const load = () => { json("/api/settings").then(setS); json("/api/activity").then((d) => setAct(Array.isArray(d) ? d : [])); };
+  const load = () => { json("/api/settings").then(setS); };
   useEffect(() => { load(); }, []);
   const save = async (patch: any) => { const ns = { ...s, ...patch }; setS(ns); await post("/api/settings", patch); setSaved(true); setTimeout(() => setSaved(false), 1500); onSaved && onSaved(); };
   if (!s) return <Card title="Настройки" icon="ti-settings"><div className="text-faint text-[13px]">загрузка…</div></Card>;
@@ -268,18 +294,6 @@ export function Settings({ onSaved }: any) {
         </div>
         {realWarn && <div className="mt-3 text-[13px] rounded-[10px] px-3.5 py-2.5" style={{ background: "rgba(217,138,22,.1)", color: "#9a6410" }}><i className="ti ti-alert-triangle mr-1.5" aria-hidden="true"></i>автопилот + реальный шлюз: фабрика будет тратить триал-баланс сама по расписанию.</div>}
         {saved && <div className="mt-3 text-[13px] text-good"><i className="ti ti-check mr-1" aria-hidden="true"></i>сохранено</div>}
-      </Card>
-      <Card title="Журнал активности" icon="ti-list-details" sub="что происходило на платформе" className="mt-4">
-        <div className="flex flex-col gap-1.5 max-h-[320px] overflow-auto">
-          {!act.length && <div className="text-[13px] text-faint py-1">пусто</div>}
-          {act.map((a, i) => (
-            <div key={i} className="flex items-center gap-3 text-[12.5px] py-1.5 border-b border-line last:border-0">
-              <span className="text-faint font-mono whitespace-nowrap">{a.ts}</span>
-              <span className="font-medium text-purple whitespace-nowrap">{a.action}</span>
-              <span className="text-muted truncate">{a.detail}</span>
-            </div>
-          ))}
-        </div>
       </Card>
     </>
   );
