@@ -15,7 +15,7 @@ import pathlib
 import subprocess
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 FACTORY = pathlib.Path(__file__).resolve().parent.parent          # /home/ubuntu/factory
 ENGINE = pathlib.Path(os.environ.get("ENGINE_DIR", "/home/ubuntu/content-agents"))
@@ -134,6 +134,70 @@ def api_runs():
 @app.get("/api/workflows/{wid}")
 def api_workflow(wid):
     return {"id": wid, "stages": SEO_STAGES, "labels": STAGE_RU}
+
+
+def _systemctl(*a):
+    try:
+        return subprocess.check_output(["systemctl", *a], text=True, stderr=subprocess.DEVNULL).strip()
+    except Exception:
+        return ""
+
+
+def _tail(path, n=24):
+    try:
+        return "\n".join(pathlib.Path(path).read_text(encoding="utf-8").splitlines()[-n:])
+    except Exception:
+        return ""
+
+
+@app.get("/api/schedule")
+def api_schedule():
+    def prop(unit, p):
+        return _systemctl("show", unit, "-p", p, "--value")
+    return {
+        "timers": [{
+            "unit": "factory-update.timer",
+            "desc": "Автообновление движка с git (git pull + валидация workflow)",
+            "active": _systemctl("is-active", "factory-update.timer"),
+            "next": prop("factory-update.timer", "NextElapseUSecRealtime"),
+            "last": prop("factory-update.timer", "LastTriggerUSec"),
+        }],
+        "services": [{
+            "unit": "factory-web.service",
+            "desc": "Веб-панель и API платформы",
+            "active": _systemctl("is-active", "factory-web.service"),
+        }],
+        "update_log": _tail(FACTORY / "update.log", 24),
+    }
+
+
+@app.post("/api/engine/update")
+def api_engine_update():
+    try:
+        subprocess.run(["sudo", "-n", "systemctl", "start", "factory-update.service"],
+                       check=True, timeout=180, stderr=subprocess.DEVNULL)
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@app.post("/api/schedule/timer")
+def api_timer_toggle(payload: dict):
+    on = bool((payload or {}).get("enabled", True))
+    try:
+        subprocess.run(["sudo", "-n", "systemctl", "start" if on else "stop", "factory-update.timer"],
+                       check=True, timeout=30, stderr=subprocess.DEVNULL)
+        return {"ok": True, "enabled": on}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@app.get("/api/runs/{rid}")
+def api_run_detail(rid: str):
+    for r in load_runs():
+        if r.get("run_id") == rid:
+            return r
+    return JSONResponse({"error": "not found"}, status_code=404)
 
 
 @app.websocket("/api/runs/ws")

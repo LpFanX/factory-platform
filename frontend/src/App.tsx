@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useRun, json, STAGES } from "./api";
 import Pipeline from "./Pipeline";
 import { Header, Metrics, AgentPanel, IdeaBank, RunsHistory, Card } from "./ui";
+import { Schedule, RunsView, ApprovalsView } from "./views";
 
 const fmtT = (s: number) => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
 const progressPct = (stages: any) => {
@@ -15,7 +16,6 @@ function stageTxt(run: any) {
   const active = STAGES.find((s) => run.stages[s.id] === "active");
   return active ? active.label + " — работает" : "запуск…";
 }
-
 const PILL: any = {
   idle: ["ожидание", "bg-bg2 text-muted"],
   running: ["выполняется", "bg-amber/15 text-amber"],
@@ -23,6 +23,12 @@ const PILL: any = {
   done: ["завершено", "bg-good/15 text-good"],
   error: ["ошибка", "bg-danger/15 text-danger"],
 };
+const TABS = [
+  { id: "dashboard", label: "Дашборд", icon: "ti-layout-dashboard" },
+  { id: "schedule", label: "Расписание", icon: "ti-calendar-clock" },
+  { id: "runs", label: "Прогоны", icon: "ti-history" },
+  { id: "approvals", label: "Согласования", icon: "ti-checkup" },
+];
 
 export default function App() {
   const run = useRun();
@@ -31,6 +37,7 @@ export default function App() {
   const [runs, setRuns] = useState<any[]>([]);
   const [selected, setSelected] = useState(STAGES[0].id);
   const [backend, setBackend] = useState("echo");
+  const [view, setView] = useState("dashboard");
 
   const refresh = () => {
     json("/api/engine").then(setEngine).catch(() => {});
@@ -45,61 +52,79 @@ export default function App() {
   const doneRuns = runs.filter((r) => r.seconds);
   const avg = doneRuns.length ? fmtT(Math.round(doneRuns.reduce((a, r) => a + r.seconds, 0) / doneRuns.length)) : "—";
   const pill = PILL[run.status] || PILL.idle;
+  const gatePending = run.status === "gate";
 
   return (
     <div className="max-w-[1160px] mx-auto px-5 pt-6 pb-16">
       <Header engine={engine} />
-      <Metrics runsToday={runsToday} avg={avg} ideas={ideas.length} backend={backend === "echo" ? "echo" : "AITunnel"} />
 
-      <div className="grid lg:grid-cols-[1.55fr_1fr] gap-4 items-start">
-        <Card title="Конвейер агентов" icon="ti-route" sub="запусти прогон — стадии оживают в реальном времени; кликни агента для лога и метрик">
-          <div className="flex gap-2.5 items-center mb-4 flex-wrap">
-            <input value={run.topic} onChange={(e) => run.setTopic(e.target.value)}
-              className="flex-1 min-w-[200px] h-10 border border-line bg-surface rounded-[11px] px-3.5 text-[14px] text-ink outline-none focus:border-teal" placeholder="Тема статьи…" />
-            <select value={backend} onChange={(e) => setBackend(e.target.value)}
-              className="h-10 border border-line bg-surface rounded-[11px] px-3 text-[13px] text-ink" title="реальный шлюз тратит триал-баланс">
-              <option value="echo">echo (демо)</option>
-              <option value="openai">AITunnel (реально)</option>
-            </select>
-            <button onClick={() => run.start(backend)} disabled={run.status === "running" || run.status === "gate"}
-              className="h-10 px-4 rounded-[11px] text-white font-medium text-[14px] flex items-center gap-1.5 disabled:opacity-50"
-              style={{ background: "linear-gradient(135deg,#0FB39A,#6D5AE6)", boxShadow: "0 6px 16px rgba(15,179,154,.3)" }}>
-              <i className="ti ti-player-play" aria-hidden="true"></i>Запустить
+      <nav className="flex gap-1.5 mb-5 flex-wrap">
+        {TABS.map((t) => {
+          const on = view === t.id;
+          return (
+            <button key={t.id} onClick={() => setView(t.id)}
+              className={"h-9 px-3.5 rounded-[10px] text-[13.5px] font-medium flex items-center gap-1.5 border transition-colors " + (on ? "border-transparent text-white" : "border-line bg-surface text-muted hover:text-ink")}
+              style={on ? { background: "linear-gradient(135deg,#0FB39A,#6D5AE6)" } : undefined}>
+              <i className={"ti " + t.icon} aria-hidden="true"></i>{t.label}
+              {t.id === "approvals" && gatePending && <span className="w-2 h-2 rounded-full bg-amber ml-0.5" />}
             </button>
-            <span className={"text-[12.5px] px-3 py-1 rounded-full font-medium " + pill[1]}>{pill[0]}</span>
-          </div>
+          );
+        })}
+      </nav>
 
-          <div className="text-[13px] text-muted mb-1">тема: <b className="text-ink font-medium">{run.topic}</b> <span className="text-faint">· seo-article · standard</span></div>
-          <Pipeline stages={run.stages} selected={selected} onSelect={setSelected} />
-
-          <div className="h-[7px] bg-bg2 rounded-full overflow-hidden mt-1 mb-2.5">
-            <div className="h-full rounded-full transition-all duration-500" style={{ width: progressPct(run.stages) + "%", background: "linear-gradient(90deg,#0FB39A,#6D5AE6)" }} />
-          </div>
-          <div className="flex justify-between text-[12.5px] text-muted">
-            <span>{stageTxt(run)}</span>
-            <span><i className="ti ti-clock" aria-hidden="true"></i> {fmtT(run.elapsed)} · <i className="ti ti-file-text" aria-hidden="true"></i> {run.chars ? run.chars.toLocaleString("ru") : 0} симв.</span>
-          </div>
-
-          {run.status === "gate" && (
-            <div className="mt-4 border rounded-[12px] px-4 py-3" style={{ borderColor: "rgba(217,138,22,.4)", background: "rgba(217,138,22,.09)" }}>
-              <div className="flex items-center justify-between gap-2.5 flex-wrap">
-                <span className="text-[13px] text-amber"><i className="ti ti-hand-stop" aria-hidden="true"></i> черновик готов, оценка редактора получена — публиковать?</span>
-                <span className="flex gap-2">
-                  <button onClick={run.approve} className="h-9 px-3.5 rounded-[10px] text-white text-[13px] font-medium flex items-center gap-1.5" style={{ background: "linear-gradient(135deg,#0FB39A,#6D5AE6)" }}><i className="ti ti-check" aria-hidden="true"></i>Принять</button>
-                  <button onClick={run.approve} className="h-9 px-3.5 rounded-[10px] border border-line bg-surface text-[13px] flex items-center gap-1.5"><i className="ti ti-rotate" aria-hidden="true"></i>На доработку</button>
-                </span>
+      {view === "dashboard" && (
+        <>
+          <Metrics runsToday={runsToday} avg={avg} ideas={ideas.length} backend={backend === "echo" ? "echo" : "AITunnel"} />
+          <div className="grid lg:grid-cols-[1.55fr_1fr] gap-4 items-start">
+            <Card title="Конвейер агентов" icon="ti-route" sub="запусти прогон — стадии оживают в реальном времени; кликни агента для лога и метрик">
+              <div className="flex gap-2.5 items-center mb-4 flex-wrap">
+                <input value={run.topic} onChange={(e) => run.setTopic(e.target.value)}
+                  className="flex-1 min-w-[200px] h-10 border border-line bg-surface rounded-[11px] px-3.5 text-[14px] text-ink outline-none focus:border-teal" placeholder="Тема статьи…" />
+                <select value={backend} onChange={(e) => setBackend(e.target.value)}
+                  className="h-10 border border-line bg-surface rounded-[11px] px-3 text-[13px] text-ink" title="реальный шлюз тратит триал-баланс">
+                  <option value="echo">echo (демо)</option>
+                  <option value="openai">AITunnel (реально)</option>
+                </select>
+                <button onClick={() => run.start(backend)} disabled={run.status === "running" || run.status === "gate"}
+                  className="h-10 px-4 rounded-[11px] text-white font-medium text-[14px] flex items-center gap-1.5 disabled:opacity-50"
+                  style={{ background: "linear-gradient(135deg,#0FB39A,#6D5AE6)", boxShadow: "0 6px 16px rgba(15,179,154,.3)" }}>
+                  <i className="ti ti-player-play" aria-hidden="true"></i>Запустить
+                </button>
+                <span className={"text-[12.5px] px-3 py-1 rounded-full font-medium " + pill[1]}>{pill[0]}</span>
               </div>
-            </div>
-          )}
-        </Card>
+              <div className="text-[13px] text-muted mb-1">тема: <b className="text-ink font-medium">{run.topic}</b> <span className="text-faint">· seo-article · standard</span></div>
+              <Pipeline stages={run.stages} selected={selected} onSelect={setSelected} />
+              <div className="h-[7px] bg-bg2 rounded-full overflow-hidden mt-1 mb-2.5">
+                <div className="h-full rounded-full transition-all duration-500" style={{ width: progressPct(run.stages) + "%", background: "linear-gradient(90deg,#0FB39A,#6D5AE6)" }} />
+              </div>
+              <div className="flex justify-between text-[12.5px] text-muted">
+                <span>{stageTxt(run)}</span>
+                <span><i className="ti ti-clock" aria-hidden="true"></i> {fmtT(run.elapsed)} · <i className="ti ti-file-text" aria-hidden="true"></i> {run.chars ? run.chars.toLocaleString("ru") : 0} симв.</span>
+              </div>
+              {gatePending && (
+                <div className="mt-4 border rounded-[12px] px-4 py-3" style={{ borderColor: "rgba(217,138,22,.4)", background: "rgba(217,138,22,.09)" }}>
+                  <div className="flex items-center justify-between gap-2.5 flex-wrap">
+                    <span className="text-[13px] text-amber"><i className="ti ti-hand-stop" aria-hidden="true"></i> черновик готов, оценка редактора получена — публиковать?</span>
+                    <span className="flex gap-2">
+                      <button onClick={run.approve} className="h-9 px-3.5 rounded-[10px] text-white text-[13px] font-medium flex items-center gap-1.5" style={{ background: "linear-gradient(135deg,#0FB39A,#6D5AE6)" }}><i className="ti ti-check" aria-hidden="true"></i>Принять</button>
+                      <button onClick={run.approve} className="h-9 px-3.5 rounded-[10px] border border-line bg-surface text-[13px] flex items-center gap-1.5"><i className="ti ti-rotate" aria-hidden="true"></i>На доработку</button>
+                    </span>
+                  </div>
+                </div>
+              )}
+            </Card>
+            <AgentPanel selected={selected} stages={run.stages} logs={run.logs} chars={run.chars} />
+          </div>
+          <div className="grid lg:grid-cols-2 gap-4 mt-4">
+            <IdeaBank ideas={ideas} />
+            <RunsHistory runs={runs} />
+          </div>
+        </>
+      )}
 
-        <AgentPanel selected={selected} stages={run.stages} logs={run.logs} chars={run.chars} />
-      </div>
-
-      <div className="grid lg:grid-cols-2 gap-4 mt-4">
-        <IdeaBank ideas={ideas} />
-        <RunsHistory runs={runs} />
-      </div>
+      {view === "schedule" && <Schedule />}
+      {view === "runs" && <RunsView runs={runs} />}
+      {view === "approvals" && <ApprovalsView run={run} runs={runs} />}
     </div>
   );
 }
