@@ -9,6 +9,9 @@ export const STAGES = [
 ];
 const IDS = STAGES.map((s) => s.id);
 export const json = (u: string) => fetch(u).then((r) => r.json());
+export const post = (u: string, body?: any) =>
+  fetch(u, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) })
+    .then((r) => r.json()).catch(() => ({}));
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export type StageStatus = "pending" | "active" | "done" | "skip";

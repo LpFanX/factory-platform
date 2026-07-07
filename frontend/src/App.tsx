@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useRun, json, STAGES } from "./api";
 import Pipeline from "./Pipeline";
 import { Header, Metrics, AgentPanel, IdeaBank, RunsHistory, Card } from "./ui";
-import { Schedule, RunsView, ApprovalsView } from "./views";
+import { Schedule, RunsView, ApprovalsView, Settings } from "./views";
 
 const fmtT = (s: number) => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
 const progressPct = (stages: any) => {
@@ -17,10 +17,8 @@ function stageTxt(run: any) {
   return active ? active.label + " — работает" : "запуск…";
 }
 const PILL: any = {
-  idle: ["ожидание", "bg-bg2 text-muted"],
-  running: ["выполняется", "bg-amber/15 text-amber"],
-  gate: ["на согласовании", "bg-amber/15 text-amber"],
-  done: ["завершено", "bg-good/15 text-good"],
+  idle: ["ожидание", "bg-bg2 text-muted"], running: ["выполняется", "bg-amber/15 text-amber"],
+  gate: ["на согласовании", "bg-amber/15 text-amber"], done: ["завершено", "bg-good/15 text-good"],
   error: ["ошибка", "bg-danger/15 text-danger"],
 };
 const TABS = [
@@ -28,6 +26,7 @@ const TABS = [
   { id: "schedule", label: "Расписание", icon: "ti-calendar-clock" },
   { id: "runs", label: "Прогоны", icon: "ti-history" },
   { id: "approvals", label: "Согласования", icon: "ti-checkup" },
+  { id: "settings", label: "Настройки", icon: "ti-settings" },
 ];
 
 export default function App() {
@@ -35,6 +34,7 @@ export default function App() {
   const [engine, setEngine] = useState<any>({});
   const [ideas, setIdeas] = useState<any[]>([]);
   const [runs, setRuns] = useState<any[]>([]);
+  const [settings, setSettings] = useState<any>({ backend: "echo" });
   const [selected, setSelected] = useState(STAGES[0].id);
   const [backend, setBackend] = useState("echo");
   const [view, setView] = useState("dashboard");
@@ -43,6 +43,7 @@ export default function App() {
     json("/api/engine").then(setEngine).catch(() => {});
     json("/api/ideas").then((d) => setIdeas(Array.isArray(d) ? d : [])).catch(() => {});
     json("/api/runs").then((d) => setRuns(Array.isArray(d) ? d : [])).catch(() => {});
+    json("/api/settings").then((s) => { setSettings(s); setBackend(s.backend || "echo"); }).catch(() => {});
   };
   useEffect(() => { refresh(); }, []);
   useEffect(() => { if (run.status === "done") refresh(); }, [run.status]);
@@ -53,6 +54,7 @@ export default function App() {
   const avg = doneRuns.length ? fmtT(Math.round(doneRuns.reduce((a, r) => a + r.seconds, 0) / doneRuns.length)) : "—";
   const pill = PILL[run.status] || PILL.idle;
   const gatePending = run.status === "gate";
+  const reviewCount = runs.filter((r) => r.status === "awaiting_review").length;
 
   return (
     <div className="max-w-[1160px] mx-auto px-5 pt-6 pb-16">
@@ -61,12 +63,13 @@ export default function App() {
       <nav className="flex gap-1.5 mb-5 flex-wrap">
         {TABS.map((t) => {
           const on = view === t.id;
+          const badge = (t.id === "approvals" && (gatePending || reviewCount)) ? (gatePending ? "•" : reviewCount) : null;
           return (
             <button key={t.id} onClick={() => setView(t.id)}
               className={"h-9 px-3.5 rounded-[10px] text-[13.5px] font-medium flex items-center gap-1.5 border transition-colors " + (on ? "border-transparent text-white" : "border-line bg-surface text-muted hover:text-ink")}
               style={on ? { background: "linear-gradient(135deg,#0FB39A,#6D5AE6)" } : undefined}>
               <i className={"ti " + t.icon} aria-hidden="true"></i>{t.label}
-              {t.id === "approvals" && gatePending && <span className="w-2 h-2 rounded-full bg-amber ml-0.5" />}
+              {badge != null && <span className="ml-0.5 text-[11px] px-1.5 rounded-full" style={on ? { background: "rgba(255,255,255,.25)" } : { background: "rgba(217,138,22,.18)", color: "#9a6410" }}>{badge}</span>}
             </button>
           );
         })}
@@ -92,7 +95,7 @@ export default function App() {
                 </button>
                 <span className={"text-[12.5px] px-3 py-1 rounded-full font-medium " + pill[1]}>{pill[0]}</span>
               </div>
-              <div className="text-[13px] text-muted mb-1">тема: <b className="text-ink font-medium">{run.topic}</b> <span className="text-faint">· seo-article · standard</span></div>
+              <div className="text-[13px] text-muted mb-1">тема: <b className="text-ink font-medium">{run.topic}</b> <span className="text-faint">· seo-article · {settings.profile || "standard"}</span></div>
               <Pipeline stages={run.stages} selected={selected} onSelect={setSelected} />
               <div className="h-[7px] bg-bg2 rounded-full overflow-hidden mt-1 mb-2.5">
                 <div className="h-full rounded-full transition-all duration-500" style={{ width: progressPct(run.stages) + "%", background: "linear-gradient(90deg,#0FB39A,#6D5AE6)" }} />
@@ -116,7 +119,7 @@ export default function App() {
             <AgentPanel selected={selected} stages={run.stages} logs={run.logs} chars={run.chars} />
           </div>
           <div className="grid lg:grid-cols-2 gap-4 mt-4">
-            <IdeaBank ideas={ideas} />
+            <IdeaBank ideas={ideas} onRefresh={refresh} />
             <RunsHistory runs={runs} />
           </div>
         </>
@@ -124,7 +127,8 @@ export default function App() {
 
       {view === "schedule" && <Schedule />}
       {view === "runs" && <RunsView runs={runs} />}
-      {view === "approvals" && <ApprovalsView run={run} runs={runs} />}
+      {view === "approvals" && <ApprovalsView run={run} runs={runs} onRefresh={refresh} />}
+      {view === "settings" && <Settings onSaved={refresh} />}
     </div>
   );
 }

@@ -1,4 +1,5 @@
-import { STAGES } from "./api";
+import { useState } from "react";
+import { STAGES, post } from "./api";
 import type { LogLine } from "./api";
 
 export function Card({ title, icon, sub, children, className = "" }: any) {
@@ -60,8 +61,6 @@ export function Metrics({ runsToday, avg, ideas, backend }: any) {
   );
 }
 
-const fmtT = (s: number) => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
-
 export function AgentPanel({ selected, stages, logs, chars }: { selected: string; stages: any; logs: LogLine[]; chars: number }) {
   const meta = STAGES.find((s) => s.id === selected);
   const st = stages[selected];
@@ -75,14 +74,8 @@ export function AgentPanel({ selected, stages, logs, chars }: { selected: string
       </div>
       <div className="text-[12.5px] text-muted mb-3">{meta ? "стадия конвейера · " + meta.id : "кликни узел конвейера"}</div>
       <div className="grid grid-cols-2 gap-2.5 mb-3.5">
-        <div className="bg-surface border border-line rounded-[11px] px-3 py-2">
-          <div className="text-[11.5px] text-faint">статус</div>
-          <div className="text-[16px] font-semibold mt-0.5">{stTxt}</div>
-        </div>
-        <div className="bg-surface border border-line rounded-[11px] px-3 py-2">
-          <div className="text-[11.5px] text-faint">символов</div>
-          <div className="text-[16px] font-semibold font-mono mt-0.5">{chars ? chars.toLocaleString("ru") : "—"}</div>
-        </div>
+        <div className="bg-surface border border-line rounded-[11px] px-3 py-2"><div className="text-[11.5px] text-faint">статус</div><div className="text-[16px] font-semibold mt-0.5">{stTxt}</div></div>
+        <div className="bg-surface border border-line rounded-[11px] px-3 py-2"><div className="text-[11.5px] text-faint">символов</div><div className="text-[16px] font-semibold font-mono mt-0.5">{chars ? chars.toLocaleString("ru") : "—"}</div></div>
       </div>
       <div className="logbox rounded-[12px] p-3.5 h-[250px] overflow-auto font-mono text-[12px] leading-[1.65]" style={{ background: "#1c1a15", color: "#d7cfbf" }}>
         {rows.length ? rows.map((l, i) => {
@@ -96,20 +89,41 @@ export function AgentPanel({ selected, stages, logs, chars }: { selected: string
 
 const tagClass: any = {
   proposed: "bg-bg2 text-muted", approved: "bg-purple/10 text-purple",
-  done: "bg-good/15 text-good", running: "bg-amber/15 text-amber", queued: "bg-purple/10 text-purple",
+  done: "bg-good/15 text-good", rejected: "bg-danger/12 text-danger", queued: "bg-purple/10 text-purple",
 };
-export function IdeaBank({ ideas }: any) {
+export function IdeaBank({ ideas, onRefresh }: any) {
+  const [topic, setTopic] = useState("");
+  const [busy, setBusy] = useState(false);
+  const add = async () => {
+    const t = topic.trim(); if (!t) return;
+    setBusy(true); await post("/api/ideas", { topic: t }); setTopic(""); setBusy(false); onRefresh && onRefresh();
+  };
+  const act = async (id: string, action: string) => { await post(`/api/ideas/${id}/${action}`); onRefresh && onRefresh(); };
   return (
     <Card title="Банк идей" icon="ti-inbox" sub="единая очередь тем — источник для планировщика">
+      <div className="flex gap-2 mb-3">
+        <input value={topic} onChange={(e) => setTopic(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()}
+          className="flex-1 min-w-0 h-9 border border-line bg-surface rounded-[10px] px-3 text-[13.5px] text-ink outline-none focus:border-teal" placeholder="Новая тема…" />
+        <button onClick={add} disabled={busy || !topic.trim()} className="h-9 px-3 rounded-[10px] text-white text-[13px] font-medium flex items-center gap-1.5 disabled:opacity-50" style={{ background: "linear-gradient(135deg,#0FB39A,#6D5AE6)" }}>
+          <i className="ti ti-plus" aria-hidden="true"></i>Добавить
+        </button>
+      </div>
       <div className="flex flex-col gap-2.5">
-        {(!ideas || !ideas.length) && <div className="text-[13px] text-faint py-2">банк пуст — темы добавим на этапе автономной фабрики</div>}
-        {(ideas || []).slice(0, 7).map((it: any, i: number) => {
-          const t = it.topic || it.title || it.name || String(it).slice(0, 60);
+        {(!ideas || !ideas.length) && <div className="text-[13px] text-faint py-1">банк пуст — добавь тему выше</div>}
+        {(ideas || []).slice(0, 10).map((it: any, i: number) => {
+          const t = it.topic || it.title || String(it).slice(0, 60);
           const s = it.status || "proposed";
           return (
             <div key={i} className="flex items-center justify-between gap-2.5 bg-surface border border-line rounded-[11px] px-3.5 py-2.5 text-[13px]">
-              <span className="truncate">{t}</span>
-              <span className={"text-[11.5px] px-2.5 py-1 rounded-full font-medium whitespace-nowrap " + (tagClass[s] || tagClass.proposed)}>{s}</span>
+              <span className="truncate flex-1">{t}</span>
+              {s === "proposed" ? (
+                <span className="flex gap-1.5 shrink-0">
+                  <button onClick={() => act(it.id, "approve")} className="h-7 px-2.5 rounded-[8px] text-[12px] font-medium bg-good/12 text-good hover:bg-good/20" title="одобрить"><i className="ti ti-check" aria-hidden="true"></i></button>
+                  <button onClick={() => act(it.id, "reject")} className="h-7 px-2.5 rounded-[8px] text-[12px] font-medium bg-bg2 text-muted hover:text-danger" title="отклонить"><i className="ti ti-x" aria-hidden="true"></i></button>
+                </span>
+              ) : (
+                <span className={"text-[11.5px] px-2.5 py-1 rounded-full font-medium whitespace-nowrap " + (tagClass[s] || tagClass.proposed)}>{s}</span>
+              )}
             </div>
           );
         })}
@@ -117,7 +131,9 @@ export function IdeaBank({ ideas }: any) {
     </Card>
   );
 }
+
 export function RunsHistory({ runs }: any) {
+  const fmtT = (s: number) => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
   return (
     <Card title="Последние прогоны" icon="ti-history" sub="история фабрики">
       <div className="flex flex-col gap-2.5">
