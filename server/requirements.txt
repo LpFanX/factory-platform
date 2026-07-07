@@ -1,0 +1,4 @@
+# Платформа (обёртка). Движок content-agents тянет свои зависимости отдельно (PyYAML).
+fastapi>=0.110
+uvicorn[standard]>=0.29
+PyYAML>=6.0

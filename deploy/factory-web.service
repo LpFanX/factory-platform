@@ -1,0 +1,25 @@
+[Unit]
+Description=Content Factory — web/API (FastAPI/uvicorn)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Environment=HOME=/home/ubuntu
+Environment=ENGINE_DIR=/home/ubuntu/content-agents
+Environment=CONTENT_AGENTS_DATA=/home/ubuntu/factory-data
+Environment=PYBIN=/home/ubuntu/factory/.venv/bin/python
+Environment=LLM_BACKEND=echo
+Environment=RUN_PROFILE=standard
+# Для реального шлюза позже:
+#   Environment=LLM_BACKEND=openai
+#   Environment=LLM_BASE_URL=https://api.proxyapi.ru/openai/v1
+#   Environment=OPENAI_API_KEY=...   (лучше через отдельный EnvironmentFile=/home/ubuntu/factory/.env)
+WorkingDirectory=/home/ubuntu/factory
+ExecStart=/home/ubuntu/factory/.venv/bin/uvicorn server.app:app --host 127.0.0.1 --port 8020
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
