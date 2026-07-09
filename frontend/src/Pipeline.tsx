@@ -20,6 +20,7 @@ function AgentNode({ data }: any) {
       <motion.div
         className={active ? "node-active" : ""}
         animate={{ scale: active ? 1.06 : 1 }}
+        whileHover={{ scale: active ? 1.1 : 1.05 }}
         transition={{ type: "spring", stiffness: 220, damping: 16 }}
         style={{
           width: 58, height: 58, borderRadius: 17, margin: "0 auto",

@@ -17,7 +17,23 @@ export function Card({ title, icon, sub, children, className = "" }: any) {
   );
 }
 
-export function Header({ engine, balance, authOn }: any) {
+const RUN_STATUS: any = {
+  awaiting_review: ["на ревью", "bg-amber/15 text-amber"],
+  accepted: ["принят", "bg-good/15 text-good"],
+  done: ["готово", "bg-good/15 text-good"],
+  failed: ["ошибка", "bg-danger/12 text-danger"],
+  reworked: ["доработка", "bg-purple/10 text-purple"],
+};
+export function StatusPill({ status, extra }: any) {
+  const [label, cls] = RUN_STATUS[status] || [status || "—", "bg-bg2 text-muted"];
+  return (
+    <span className={"text-[11.5px] px-2.5 py-1 rounded-full font-medium whitespace-nowrap " + cls}>
+      {label}{extra ? <span className="opacity-75"> · {extra}</span> : null}
+    </span>
+  );
+}
+
+export function Header({ engine, balance, authOn, lowBalance }: any) {
   const e = engine || {};
   const logout = async () => { await post("/api/logout"); location.reload(); };
   return (
@@ -34,9 +50,11 @@ export function Header({ engine, balance, authOn }: any) {
       </div>
       <div className="flex items-center gap-2 flex-wrap">
         {balance != null && (
-          <div className="flex items-center gap-1.5 bg-surface border border-line rounded-full px-3.5 py-2 text-[12.5px]" title="баланс AITunnel">
-            <i className="ti ti-wallet text-teal" aria-hidden="true"></i><span className="text-muted">баланс</span>
-            <b className="font-semibold">{Math.round(balance).toLocaleString("ru")} ₽</b>
+          <div className={"flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12.5px] border " + (lowBalance ? "border-danger/40 bg-danger/5" : "bg-surface border-line")}
+               title={lowBalance ? "баланс AITunnel ниже порога — пополни" : "баланс AITunnel"}>
+            <i className={"ti " + (lowBalance ? "ti-alert-triangle text-danger" : "ti-wallet text-teal")} aria-hidden="true"></i>
+            <span className="text-muted">баланс</span>
+            <b className={"font-semibold tabnum " + (lowBalance ? "text-danger" : "")}>{Math.round(balance).toLocaleString("ru")} ₽</b>
           </div>
         )}
         <div className="flex items-center gap-2 bg-surface border border-line rounded-full px-3.5 py-2 text-[12.5px]" title="версия движка агентов (обновляется с git)">
@@ -94,9 +112,9 @@ export function Login() {
 
 function Metric({ icon, k, v }: any) {
   return (
-    <div className="bg-surface border border-line rounded-[14px] px-4 py-3.5">
-      <div className="text-[12.5px] text-muted flex items-center gap-1.5"><i className={"ti " + icon} aria-hidden="true"></i>{k}</div>
-      <div className="text-[27px] font-semibold tracking-tight mt-0.5">{v}</div>
+    <div className="bg-surface border border-line rounded-[14px] px-4 py-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-soft hover:border-teal/40">
+      <div className="text-[12.5px] text-muted flex items-center gap-1.5"><i className={"ti " + icon + " text-teal"} aria-hidden="true"></i>{k}</div>
+      <div className="text-[27px] font-semibold tracking-tight mt-0.5 tabnum">{v}</div>
     </div>
   );
 }
@@ -190,12 +208,13 @@ export function RunsHistory({ runs }: any) {
   return (
     <Card title="Последние прогоны" icon="ti-history" sub="история фабрики">
       <div className="flex flex-col gap-2.5">
-        {(!runs || !runs.length) && <div className="text-[13px] text-faint py-2">пока нет прогонов</div>}
+        {(!runs || !runs.length) && <div className="text-[13px] text-faint py-2"><i className="ti ti-mist mr-1.5" aria-hidden="true"></i>пока нет прогонов</div>}
         {(runs || []).slice(0, 7).map((r: any, i: number) => (
-          <div key={i} className="flex items-center justify-between gap-2.5 bg-surface border border-line rounded-[11px] px-3.5 py-2.5 text-[13px]">
+          <div key={i} className="flex items-center justify-between gap-2.5 bg-surface border border-line rounded-[11px] px-3.5 py-2.5 text-[13px] transition-colors hover:border-teal/50">
             <span className="truncate">{r.topic || r.workflow}</span>
-            <span className={"text-[11.5px] px-2.5 py-1 rounded-full font-medium whitespace-nowrap " + (r.ready ? tagClass.done : tagClass.proposed)}>
-              {(r.completeness || "—") + " · " + fmtT(r.seconds || 0)}
+            <span className="flex items-center gap-2 shrink-0">
+              {(r.cost || 0) > 0 && <span className="text-[11.5px] text-faint font-mono tabnum">{Number(r.cost).toLocaleString("ru", { maximumFractionDigits: 1 })} ₽</span>}
+              <StatusPill status={r.status} extra={fmtT(r.seconds || 0)} />
             </span>
           </div>
         ))}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { useRun, json, STAGES } from "./api";
 import Pipeline from "./Pipeline";
 import { Header, Metrics, AgentPanel, IdeaBank, RunsHistory, Card, Login } from "./ui";
@@ -86,9 +87,11 @@ export default function App() {
 
   return (
     <div className="max-w-[1160px] mx-auto px-5 pt-6 pb-16">
-      <Header engine={engine} balance={aiBalance} authOn={authOn} />
+      <Header engine={engine} balance={aiBalance} authOn={authOn}
+        lowBalance={aiBalance != null && settings.low_balance_rub != null && aiBalance < settings.low_balance_rub} />
 
-      <nav className="flex gap-1.5 mb-5 flex-wrap">
+      <nav className="sticky top-0 z-30 flex gap-1.5 mb-5 flex-wrap -mx-5 px-5 py-2.5 backdrop-blur-md"
+        style={{ background: "rgba(246,241,232,.78)" }}>
         {TABS.map((t) => {
           const on = view === t.id;
           const badge = (t.id === "approvals" && (gatePending || reviewCount)) ? (gatePending ? "•" : reviewCount) : null;
@@ -103,6 +106,7 @@ export default function App() {
         })}
       </nav>
 
+      <motion.div key={view} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, ease: "easeOut" }}>
       {view === "dashboard" && (
         <>
           <Metrics runsToday={runsToday} avg={avg} ideas={ideas.length} todaySpend={aiStats.today_spend} />
@@ -158,6 +162,7 @@ export default function App() {
       {view === "approvals" && <ApprovalsView run={run} runs={runs} onRefresh={refresh} />}
       {view === "settings" && (<><Settings onSaved={refresh} /><div className="mt-4"><ScheduleControls /></div></>)}
       {view === "logs" && <Logs />}
+      </motion.div>
     </div>
   );
 }

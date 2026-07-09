@@ -19,7 +19,11 @@ body{
 }
 *::-webkit-scrollbar{width:9px;height:9px}
 *::-webkit-scrollbar-thumb{background:#E0D7C6;border-radius:9px}
+*::-webkit-scrollbar-thumb:hover{background:#CFC5B0}
 .logbox::-webkit-scrollbar-thumb{background:#3a362d}
+::selection{background:rgba(15,179,154,.22)}
+:focus-visible{outline:2px solid #0FB39A;outline-offset:2px;border-radius:6px}
+.tabnum{font-variant-numeric:tabular-nums}
 
 /* React Flow — прозрачный фон, свой стиль */
 .react-flow__attribution{display:none}

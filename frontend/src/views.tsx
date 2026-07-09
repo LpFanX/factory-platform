@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { json, post } from "./api";
-import { Card } from "./ui";
+import { Card, StatusPill } from "./ui";
 
 const fmtT = (s: number) => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
 const clean = (v: string) => (!v || v === "n/a" || v === "0") ? "—" : v;
@@ -132,7 +132,10 @@ export function RunsView({ runs }: any) {
           {(runs || []).map((r: any, i: number) => (
             <div key={i} onClick={() => setSel(r)} className={"flex items-center justify-between gap-2.5 border rounded-[11px] px-3.5 py-2.5 text-[13px] cursor-pointer " + (sel === r ? "border-purple bg-purple/5" : "border-line bg-surface hover:border-teal")}>
               <span className="truncate">{r.topic || r.workflow}</span>
-              <span className={"text-[11.5px] px-2.5 py-1 rounded-full font-medium whitespace-nowrap " + (r.ready ? "bg-good/15 text-good" : "bg-bg2 text-muted")}>{(r.status || r.completeness || "—") + " · " + fmtT(r.seconds || 0)}</span>
+              <span className="flex items-center gap-2 shrink-0">
+                {(r.cost || 0) > 0 && <span className="text-[11.5px] text-faint font-mono tabnum">{Number(r.cost).toLocaleString("ru", { maximumFractionDigits: 1 })} ₽</span>}
+                <StatusPill status={r.status} extra={fmtT(r.seconds || 0)} />
+              </span>
             </div>
           ))}
         </div>
