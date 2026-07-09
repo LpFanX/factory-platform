@@ -17,8 +17,9 @@ export function Card({ title, icon, sub, children, className = "" }: any) {
   );
 }
 
-export function Header({ engine, balance }: any) {
+export function Header({ engine, balance, authOn }: any) {
   const e = engine || {};
+  const logout = async () => { await post("/api/logout"); location.reload(); };
   return (
     <header className="flex items-center justify-between gap-4 flex-wrap mb-6">
       <div className="flex items-center gap-3">
@@ -45,8 +46,49 @@ export function Header({ engine, balance }: any) {
           <span className="font-mono text-faint text-[12px]">{e.sha}</span>
           {e.pulled && <span className="text-faint">· обновлён {String(e.pulled).slice(11, 16)}</span>}
         </div>
+        {authOn && (
+          <button onClick={logout} title="выйти из панели"
+            className="w-9 h-9 rounded-full border border-line bg-surface text-muted hover:text-danger flex items-center justify-center">
+            <i className="ti ti-logout" aria-hidden="true"></i>
+          </button>
+        )}
       </div>
     </header>
+  );
+}
+
+export function Login() {
+  const [pw, setPw] = useState("");
+  const [err, setErr] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const go = async () => {
+    if (!pw || busy) return;
+    setBusy(true); setErr(false);
+    const r = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: pw }) });
+    if (r.ok) location.reload(); else { setErr(true); setBusy(false); }
+  };
+  return (
+    <div className="min-h-screen flex items-center justify-center px-5">
+      <div className="bg-white border border-line rounded-[20px] shadow-soft p-8 w-full max-w-[380px]">
+        <div className="flex flex-col items-center text-center mb-6">
+          <div className="w-12 h-12 rounded-[14px] flex items-center justify-center text-white text-[24px] mb-3"
+               style={{ background: "linear-gradient(135deg,#0FB39A,#6D5AE6)", boxShadow: "0 8px 22px rgba(15,179,154,.35)" }}>
+            <i className="ti ti-cpu" aria-hidden="true"></i>
+          </div>
+          <div className="font-display text-[20px] font-semibold tracking-tight">Фабрика контента</div>
+          <div className="text-[12.5px] text-muted mt-1">вход в панель управления</div>
+        </div>
+        <input type="password" value={pw} autoFocus onChange={(e) => { setPw(e.target.value); setErr(false); }}
+          onKeyDown={(e) => e.key === "Enter" && go()} placeholder="Пароль"
+          className={"w-full h-11 border rounded-[12px] px-3.5 text-[14px] outline-none bg-surface " + (err ? "border-danger" : "border-line focus:border-teal")} />
+        {err && <div className="text-[12.5px] text-danger mt-2"><i className="ti ti-alert-circle mr-1" aria-hidden="true"></i>неверный пароль</div>}
+        <button onClick={go} disabled={busy || !pw}
+          className="w-full h-11 mt-4 rounded-[12px] text-white font-medium text-[14px] flex items-center justify-center gap-1.5 disabled:opacity-50"
+          style={{ background: "linear-gradient(135deg,#0FB39A,#6D5AE6)", boxShadow: "0 6px 16px rgba(15,179,154,.3)" }}>
+          <i className={"ti " + (busy ? "ti-loader-2 animate-spin" : "ti-login-2")} aria-hidden="true"></i>{busy ? "проверяю…" : "Войти"}
+        </button>
+      </div>
+    </div>
   );
 }
 

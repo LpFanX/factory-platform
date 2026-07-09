@@ -8,10 +8,17 @@ export const STAGES = [
   { id: "final-trust-editor", label: "Финал", icon: "ti-wand" },
 ];
 const IDS = STAGES.map((s) => s.id);
-export const json = (u: string) => fetch(u).then((r) => r.json());
+const authFail = () => window.dispatchEvent(new Event("factory:auth"));
+export const json = (u: string) => fetch(u).then((r) => {
+  if (r.status === 401) { authFail(); throw new Error("unauthorized"); }
+  return r.json();
+});
 export const post = (u: string, body?: any) =>
   fetch(u, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) })
-    .then((r) => r.json()).catch(() => ({}));
+    .then((r) => {
+      if (r.status === 401) { authFail(); throw new Error("unauthorized"); }
+      return r.json();
+    }).catch(() => ({}));
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export type StageStatus = "pending" | "active" | "done" | "skip";
@@ -109,6 +116,7 @@ export function useRun() {
       else { queue.current.push(d); playLoop(); }
     };
     sock.onerror = () => { queue.current.push({ type: "error", message: "нет связи с сервером" }); playLoop(); };
+    sock.onclose = (e) => { if (e.code === 4401 || e.code === 1008) window.dispatchEvent(new Event("factory:auth")); };
   }, [status, topic]);
 
   return { status, stages, logs, elapsed, chars, result, metrics, cost, balance, topic, setTopic, start, approve };

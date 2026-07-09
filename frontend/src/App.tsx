@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useRun, json, STAGES } from "./api";
 import Pipeline from "./Pipeline";
-import { Header, Metrics, AgentPanel, IdeaBank, RunsHistory, Card } from "./ui";
+import { Header, Metrics, AgentPanel, IdeaBank, RunsHistory, Card, Login } from "./ui";
 import { ScheduleControls, RunsView, ApprovalsView, Settings, BudgetView, Logs } from "./views";
 
 const fmtT = (s: number) => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
@@ -43,8 +43,11 @@ export default function App() {
   const [selected, setSelected] = useState(STAGES[0].id);
   const [backend, setBackend] = useState("echo");
   const [view, setView] = useState<string>(() => pathToView(window.location.pathname));
+  const [needLogin, setNeedLogin] = useState(false);
+  const [authOn, setAuthOn] = useState(false);
 
   const refresh = () => {
+    json("/api/health").then((d) => setAuthOn(!!d.auth)).catch(() => {});
     json("/api/engine").then(setEngine).catch(() => {});
     json("/api/ideas").then((d) => setIdeas(Array.isArray(d) ? d : [])).catch(() => {});
     json("/api/runs").then((d) => setRuns(Array.isArray(d) ? d : [])).catch(() => {});
@@ -56,14 +59,22 @@ export default function App() {
   useEffect(() => { if (run.status === "done") refresh(); }, [run.status]);
   useEffect(() => {
     const on = () => setView(pathToView(window.location.pathname));
+    const onAuth = () => setNeedLogin(true);
     window.addEventListener("popstate", on);
-    return () => window.removeEventListener("popstate", on);
+    window.addEventListener("factory:auth", onAuth);
+    return () => { window.removeEventListener("popstate", on); window.removeEventListener("factory:auth", onAuth); };
   }, []);
+  useEffect(() => {
+    const t = TABS.find((x) => x.id === view);
+    document.title = t && t.id !== "dashboard" ? `${t.label} — Фабрика контента` : "Фабрика контента · VK Cloud";
+  }, [view]);
   const navigate = (id: string) => {
     const t = TABS.find((x) => x.id === id); if (!t) return;
     if (normPath(window.location.pathname) !== t.path) window.history.pushState(null, "", t.path);
     setView(id);
   };
+
+  if (needLogin) return <Login />;
 
   const today = new Date().toISOString().slice(0, 10);
   const runsToday = runs.filter((r) => (r.ts || "").startsWith(today)).length || runs.length;
@@ -75,7 +86,7 @@ export default function App() {
 
   return (
     <div className="max-w-[1160px] mx-auto px-5 pt-6 pb-16">
-      <Header engine={engine} balance={aiBalance} />
+      <Header engine={engine} balance={aiBalance} authOn={authOn} />
 
       <nav className="flex gap-1.5 mb-5 flex-wrap">
         {TABS.map((t) => {

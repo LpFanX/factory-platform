@@ -6,15 +6,17 @@
 """
 import os
 import re
+import hmac
 import json
 import time
 import uuid
 import asyncio
+import hashlib
 import pathlib
 import subprocess
 import urllib.request
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 
 from server import store
@@ -34,6 +36,60 @@ LINE_RE = re.compile(r"\[(\w+)\]\s*([A-Za-z0-9_\-]+)\s*:?\s*(.*)")
 
 app = FastAPI(title="Content Factory Platform")
 store.init()
+
+# ---------- auth (включается, если в .env задан PLATFORM_PASSWORD) ----------
+AUTH_PASSWORD = os.environ.get("PLATFORM_PASSWORD", "")
+AUTH_SECRET = os.environ.get("PLATFORM_SECRET") or hashlib.sha256(("fallback:" + AUTH_PASSWORD).encode()).hexdigest()
+AUTH_ON = bool(AUTH_PASSWORD)
+AUTH_COOKIE = "factory_session"
+AUTH_MAX_AGE = 30 * 24 * 3600
+AUTH_OPEN = {"/api/login", "/api/health"}
+
+
+def _sign(ts: str) -> str:
+    return hmac.new(AUTH_SECRET.encode(), ts.encode(), hashlib.sha256).hexdigest()[:40]
+
+
+def _session_valid(token: str) -> bool:
+    if not AUTH_ON:
+        return True
+    try:
+        ts, sig = (token or "").split(".", 1)
+        return hmac.compare_digest(sig, _sign(ts)) and (time.time() - int(ts)) < AUTH_MAX_AGE
+    except Exception:
+        return False
+
+
+@app.middleware("http")
+async def _auth_mw(request: Request, call_next):
+    p = request.url.path
+    if AUTH_ON and p.startswith("/api") and p not in AUTH_OPEN:
+        if not _session_valid(request.cookies.get(AUTH_COOKIE, "")):
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+    return await call_next(request)
+
+
+@app.post("/api/login")
+async def api_login(payload: dict):
+    await asyncio.sleep(0.7)  # тормозим перебор
+    if not AUTH_ON:
+        return {"ok": True, "auth": False}
+    if hmac.compare_digest(str((payload or {}).get("password") or ""), AUTH_PASSWORD):
+        ts = str(int(time.time()))
+        resp = JSONResponse({"ok": True})
+        resp.set_cookie(AUTH_COOKIE, ts + "." + _sign(ts), max_age=AUTH_MAX_AGE,
+                        httponly=True, secure=True, samesite="lax", path="/")
+        store.log_activity("login", "auth", "вход в дашборд")
+        return resp
+    store.log_activity("login_failed", "auth", "неверный пароль")
+    return JSONResponse({"error": "wrong password"}, status_code=403)
+
+
+@app.post("/api/logout")
+def api_logout():
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie(AUTH_COOKIE, path="/")
+    return resp
 
 
 def _git(*args):
@@ -114,7 +170,7 @@ def _tail(path, n=24):
 # ---------- read endpoints ----------
 @app.get("/api/health")
 def api_health():
-    return {"ok": True, "engine_dir": str(ENGINE), "data_dir": str(DATA)}
+    return {"ok": True, "auth": AUTH_ON, "engine_dir": str(ENGINE), "data_dir": str(DATA)}
 
 
 @app.get("/api/engine")
@@ -276,6 +332,9 @@ def api_timer_toggle(payload: dict):
 # ---------- run (WebSocket) ----------
 @app.websocket("/api/runs/ws")
 async def run_ws(ws: WebSocket):
+    if AUTH_ON and not _session_valid(ws.cookies.get(AUTH_COOKIE, "")):
+        await ws.close(code=4401)   # до accept → рукопожатие отклоняется
+        return
     await ws.accept()
     try:
         req = await ws.receive_json()
