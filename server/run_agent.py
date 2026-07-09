@@ -22,12 +22,43 @@ class RunAbort(Exception):
     pass
 
 
-def _wrap_client(real, sink):
+# ₽ за 1M входных токенов на AITunnel (для preflight-оценки; матч по префиксу id).
+# Кап проверялся только ПОСЛЕ вызова → один вызов на 61k токенов стоил 45 ₽ и
+# пробил кап 40 ₽ постфактум (замер 2026-07-09). Preflight не даёт сделать вызов,
+# который заведомо не влезает в остаток капа.
+_PRICE_IN_RUB_PER_MTOK = {
+    "claude-opus": 700, "claude-sonnet": 600, "claude-haiku": 200,
+    "sonar": 200, "gpt-4o-mini": 30, "gpt-4o": 250,
+}
+
+
+def _est_call_rub(kw) -> float:
+    model = str(kw.get("model") or "")
+    rate = 600.0
+    for prefix in sorted(_PRICE_IN_RUB_PER_MTOK, key=len, reverse=True):
+        if model.startswith(prefix):
+            rate = float(_PRICE_IN_RUB_PER_MTOK[prefix])
+            break
+    chars = 0
+    for m in (kw.get("messages") or []):
+        c = m.get("content")
+        chars += len(c) if isinstance(c, str) else len(str(c or ""))
+    return (chars / 3.5) * rate / 1_000_000  # ~3.5 симв/токен для ru-текста
+
+
+def _wrap_client(real, sink, preflight=None):
     class _Comp:
         def __init__(self, rc):
             self._rc = rc
 
         def create(self, **kw):
+            # Perplexity (sonar-*) не поддерживает function tools — AITunnel отвечает 404.
+            # Поиск у sonar нативный, tools ей и не нужны: снимаем их молча.
+            if str(kw.get("model") or "").startswith("sonar"):
+                kw.pop("tools", None)
+                kw.pop("tool_choice", None)
+            if preflight is not None:
+                preflight(kw)
             resp = self._rc.create(**kw)
             try:
                 u = getattr(resp, "usage", None)
@@ -90,13 +121,24 @@ def main():
             cost["aborted"] = True
             raise RunAbort(f"cost cap {a.max_cost_rub} ₽ exceeded ({round(cost['cost_rub_total'],2)} ₽)")
 
+    def preflight(kw):
+        # не делаем вызов, который по оценке не влезает в остаток капа
+        if not a.max_cost_rub:
+            return
+        est = _est_call_rub(kw)
+        if cost["cost_rub_total"] + est > a.max_cost_rub:
+            cost["aborted"] = True
+            raise RunAbort(
+                f"preflight: вызов ~{est:.1f} ₽ ({kw.get('model')}) превысит кап "
+                f"{a.max_cost_rub} ₽ (потрачено {cost['cost_rub_total']:.2f} ₽)")
+
     if a.backend == "echo":
         backend = build_backend("echo")
         llm_type = "anthropic"
     else:
         backend = build_backend("openai", model=a.model, base_url=(a.base_url or None))
         try:
-            backend._client = _wrap_client(backend._client, sink)
+            backend._client = _wrap_client(backend._client, sink, preflight)
             if a.max_tokens:
                 backend.max_tokens = a.max_tokens
             backend._max_tool_iterations = 2            # реже ReAct-циклы
