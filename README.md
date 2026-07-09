@@ -121,7 +121,7 @@ sudo systemctl daemon-reload && sudo systemctl enable --now factory-web factory-
 sudo cp deploy/nginx-factory.conf /etc/nginx/sites-available/factory && sudo nginx -t && sudo systemctl reload nginx
 ```
 
-Зависимости бэкенда: python3.12 + venv, `pip install fastapi uvicorn pyyaml openai`.
+Зависимости бэкенда: python3.12 + venv, `pip install -r server/requirements.txt`.
 Движку достаточно PyYAML (чистый Python 3.10+).
 
 ## Перенос в Kubernetes (заметки для SRE)
@@ -141,7 +141,7 @@ sudo cp deploy/nginx-factory.conf /etc/nginx/sites-available/factory && sudo ngi
 
 ```bash
 # бэкенд
-python -m venv .venv && .venv/bin/pip install fastapi uvicorn pyyaml openai
+python -m venv .venv && .venv/bin/pip install -r server/requirements.txt
 ENGINE_DIR=/path/to/content-agents CONTENT_AGENTS_DATA=/tmp/factory-data \
   .venv/bin/uvicorn server.app:app --port 8020 --reload
 # фронтенд (dev-сервер проксирует /api на :8020)
