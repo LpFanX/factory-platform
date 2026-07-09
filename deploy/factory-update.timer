@@ -1,0 +1,10 @@
+[Unit]
+Description=Nightly content-agents engine update
+
+[Timer]
+OnCalendar=*-*-* 04:30:00
+Persistent=true
+RandomizedDelaySec=900
+
+[Install]
+WantedBy=timers.target

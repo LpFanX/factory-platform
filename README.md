@@ -45,6 +45,9 @@ web/              # собранный SPA (vite build → rsync), отдаёт�
 deploy/
   factory-web.service        # uvicorn на 127.0.0.1:8020 (EnvironmentFile=.env)
   factory-scheduler.service  # + .timer (кажд. 30 мин): автономный тик (no-op, если автопилот off)
+  factory-update.sh          # клон/автообновление движка: git clone (первый раз) + git pull
+                             # --ff-only + guard queue.yaml + валидация workflow'ов
+  factory-update.service     # + .timer (ночью 04:30): запуск factory-update.sh
   factory.sh                 # обёртка тика (вызывается таймером)
   factory-auth.sh            # тумблер авторизации панели: on|off
   nginx-factory.conf         # TLS, /api → :8020 (+WebSocket), SPA fallback (try_files)
@@ -116,10 +119,16 @@ deploy/
 
 ```bash
 rsync -az server/ web/ ubuntu@HOST:/home/ubuntu/factory/{server,web}/
-sudo cp deploy/factory-{web,scheduler}.service deploy/factory-scheduler.timer /etc/systemd/system/
-sudo systemctl daemon-reload && sudo systemctl enable --now factory-web factory-scheduler.timer
+cp deploy/factory-update.sh /home/ubuntu/factory/update.sh && chmod +x /home/ubuntu/factory/update.sh
+cp deploy/factory.sh /home/ubuntu/factory/factory.sh && chmod +x /home/ubuntu/factory/factory.sh
+sudo cp deploy/factory-{web,scheduler,update}.service deploy/factory-{scheduler,update}.timer /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now factory-web factory-scheduler.timer factory-update.timer
 sudo cp deploy/nginx-factory.conf /etc/nginx/sites-available/factory && sudo nginx -t && sudo systemctl reload nginx
 ```
+
+Первичный клон движка сделает `update.sh` сам (env `ENGINE_REPO`, дефолт —
+`git@github.com:levashove/content-agents.git`; репозиторий приватный — нужен deploy key
+или ssh-ключ с доступом).
 
 Зависимости бэкенда: python3.12 + venv, `pip install -r server/requirements.txt`.
 Движку достаточно PyYAML (чистый Python 3.10+).

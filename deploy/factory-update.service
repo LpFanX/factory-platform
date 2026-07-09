@@ -1,0 +1,10 @@
+[Unit]
+Description=Factory: pull latest content-agents engine from git
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+Environment=HOME=/home/ubuntu
+ExecStart=/home/ubuntu/factory/update.sh
