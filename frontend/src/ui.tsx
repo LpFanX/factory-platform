@@ -64,6 +64,10 @@ export function Header({ engine, balance, authOn, lowBalance }: any) {
           <span className="font-mono text-faint text-[12px]">{e.sha}</span>
           {e.pulled && <span className="text-faint">· обновлён {String(e.pulled).slice(11, 16)}</span>}
         </div>
+        <a href="/how.html" title="как работает фабрика — интерактивная схема"
+          className="w-9 h-9 rounded-full border border-line bg-surface text-muted hover:text-teal flex items-center justify-center">
+          <i className="ti ti-route" aria-hidden="true"></i>
+        </a>
         {authOn && (
           <button onClick={logout} title="выйти из панели"
             className="w-9 h-9 rounded-full border border-line bg-surface text-muted hover:text-danger flex items-center justify-center">
