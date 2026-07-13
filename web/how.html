@@ -42,8 +42,8 @@
   .costpill b { font-weight:600; }
 
   /* ── схема ── */
-  .board { position:relative; background:var(--surface); border:1px solid var(--line); border-radius:20px; padding:22px; box-shadow:0 1px 2px rgba(42,38,32,.04); }
-  svg.wires { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+  .board { position:relative; background:var(--surface); border:1px solid var(--line); border-radius:20px; padding:24px; box-shadow:0 1px 2px rgba(42,38,32,.04); }
+  svg.wires { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:1; }
   .wire { fill:none; stroke:#cfc6b4; stroke-width:2; }
   .wire.dashed { stroke-dasharray:6 6; }
   .wire.flow { stroke:url(#wgrad); stroke-width:2.6; stroke-dasharray:8 7; animation:dash 1.1s linear infinite; }
@@ -51,14 +51,23 @@
   .wlabel { position:absolute; transform:translate(-50%,-50%); background:#fffdf9; border:1px solid var(--line); color:var(--muted); border-radius:999px; padding:3px 10px; font-size:11.5px; white-space:nowrap; pointer-events:none; z-index:3; }
   .wlabel.on { border-color:var(--teal); color:var(--teal); }
 
-  .grid { position:relative; z-index:2; display:grid; grid-template-columns:280px 1fr 280px; gap:64px 56px; align-items:start; }
-  .col { display:flex; flex-direction:column; gap:64px; }
+  /* вертикальная блок-схема: стрелки только вертикальные, подписи в коридорах */
+  .grid { position:relative; z-index:2; display:grid; grid-template-columns:1fr 1.55fr 1fr; gap:62px 44px;
+    grid-template-areas:
+      "a-git    a-timer   a-llm"
+      "a-clone  .         ."
+      "a-platform a-platform a-platform"
+      "a-data   a-review  ."
+      ".        a-cms     ."; }
+  #n-git { grid-area:a-git; } #n-timer { grid-area:a-timer; } #n-llm { grid-area:a-llm; }
+  #n-clone { grid-area:a-clone; }
+  #n-platform { grid-area:a-platform; }
+  #n-data { grid-area:a-data; } #n-review { grid-area:a-review; } #n-cms { grid-area:a-cms; }
 
-  .node { background:var(--card); border:1.5px solid var(--line); border-radius:16px; padding:14px 16px; cursor:pointer; transition:border-color .2s, box-shadow .2s, transform .2s; position:relative; }
+  .node { background:var(--card); border:1.5px solid var(--line); border-radius:16px; padding:14px 16px; cursor:pointer; transition:border-color .2s, box-shadow .2s; position:relative; }
   .node:hover { border-color:var(--teal); box-shadow:0 8px 22px rgba(42,38,32,.08); }
   .node.sel { border-color:var(--purple); box-shadow:0 8px 24px rgba(109,90,230,.18); }
   .node.lit { border-color:var(--teal); box-shadow:0 0 0 4px rgba(15,179,154,.14), 0 8px 24px rgba(15,179,154,.16); }
-  .node.dim { opacity:.45; }
   .node h3 { font-size:14.5px; font-weight:600; display:flex; align-items:center; gap:8px; }
   .node h3 i { color:var(--teal); font-size:17px; }
   .node .d { color:var(--muted); font-size:12.5px; margin-top:4px; }
@@ -66,7 +75,10 @@
   .tag.ghost { background:rgba(217,138,22,.12); color:#9a6410; }
   .node.dashedbox { border-style:dashed; }
 
-  .bignode { background:var(--card); border:1.5px solid var(--line); border-radius:18px; padding:16px 18px; }
+  .bignode { background:var(--card); border:1.5px solid var(--line); border-radius:18px; padding:16px 18px; cursor:pointer; transition:border-color .2s, box-shadow .2s; }
+  .bignode:hover { border-color:var(--teal); }
+  .bignode.sel { border-color:var(--purple); }
+  .bignode.lit { border-color:var(--teal); box-shadow:0 0 0 4px rgba(15,179,154,.13); }
   .bignode .head { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
   .bignode h2 { font:600 16px "VK Sans Display",sans-serif; display:flex; gap:9px; align-items:center; }
   .bignode h2 i { color:var(--purple); }
@@ -98,7 +110,6 @@
   .detail ul { margin:8px 0 0 18px; display:flex; flex-direction:column; gap:5px; }
   .hint { color:var(--faint); font-size:12.5px; }
 
-  /* секции снизу */
   .cards2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:26px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:18px; padding:20px 22px; }
   .card h3 { font:600 15.5px "VK Sans Display",sans-serif; display:flex; gap:9px; align-items:center; margin-bottom:10px; }
@@ -111,9 +122,12 @@
   .step .n { width:24px; height:24px; border-radius:50%; background:var(--grad); color:#fff; font-size:12px; font-weight:600; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px; }
   .step div { font-size:13.5px; color:var(--muted); }
   footer { margin-top:34px; color:var(--faint); font-size:12.5px; text-align:center; }
+
   @media (max-width:960px) {
-    .grid { grid-template-columns:1fr; gap:56px; }
-    .col { gap:56px; }
+    .grid { display:flex; flex-direction:column; gap:18px; }
+    svg.wires, .wlabel { display:none; }   /* на мобиле схема читается списком, без линий */
+    #n-git { order:1; } #n-clone { order:2; } #n-llm { order:3; } #n-timer { order:4; }
+    #n-platform { order:5; } #n-data { order:6; } #n-review { order:7; } #n-cms { order:8; }
     .pipe { grid-template-columns:repeat(2,1fr); gap:20px; }
     .stage:not(:last-child)::before { display:none; }
     .cards2 { grid-template-columns:1fr; }
@@ -143,7 +157,7 @@
     <button class="btn btn-run" id="runBtn"><i class="ti ti-player-play"></i>Прогнать статью (демо)</button>
     <button class="btn btn-ghost" id="resetBtn"><i class="ti ti-rotate"></i>сброс</button>
     <span class="runstat" id="runStat">это анимация процесса — денег не тратит</span>
-    <span class="costpill"><i class="ti ti-coins" style="color:var(--teal)"></i>стоимость прогона: <b id="costVal">0 ₽</b> <span class="hint" id="costHint">(оценка)</span></span>
+    <span class="costpill"><i class="ti ti-coins" style="color:var(--teal)"></i>стоимость прогона: <b id="costVal">0 ₽</b> <span class="hint">(оценка)</span></span>
   </div>
 
   <div class="board" id="board">
@@ -162,73 +176,68 @@
     </svg>
 
     <div class="grid">
-      <!-- левая колонка -->
-      <div class="col">
-        <div class="node" id="n-git" data-key="git">
-          <h3><i class="ti ti-brand-github"></i>GitHub Левашова</h3>
-          <div class="d">репозиторий <b>content-agents</b>: агенты, правила, скиллы, workflow'ы. Живёт и развивается без нас.</div>
-          <span class="tag">на стороне Левашова · read-only для нас</span>
-        </div>
-        <div class="node" id="n-clone" data-key="clone">
-          <h3><i class="ti ti-git-pull-request"></i>Клон движка на нашей VM</h3>
-          <div class="d">точная копия репы. Каждую ночь <code>git pull</code> + проверка, что workflow'ы не сломались. Мы в него не пишем ни байта.</div>
-          <span class="tag">обновляется сам · 04:30</span>
-        </div>
-        <div class="node" id="n-data" data-key="data">
-          <h3><i class="ti ti-database"></i>Наши данные</h3>
-          <div class="d">банк идей, история прогонов (SQLite), готовые статьи, база знаний. Лежат отдельно от клона — обновление движка их не трогает.</div>
-          <span class="tag">на стороне фабрики контента</span>
-        </div>
+      <div class="node" id="n-git" data-key="git">
+        <h3><i class="ti ti-brand-github"></i>GitHub Левашова</h3>
+        <div class="d">репозиторий <b>content-agents</b>: агенты, правила, скиллы, workflow'ы. Живёт и развивается без нас.</div>
+        <span class="tag">на стороне Левашова · read-only для нас</span>
       </div>
 
-      <!-- центр -->
-      <div class="col">
-        <div class="bignode" id="n-platform" data-key="platform">
-          <div class="head">
-            <h2><i class="ti ti-layout-dashboard"></i>Наша платформа · factory.lpfanx.ru</h2>
-            <div class="saferow">
-              <span class="safe"><i class="ti ti-shield-lock"></i>кап ₽ на прогон</span>
-              <span class="safe"><i class="ti ti-gauge"></i>preflight-оценка</span>
-              <span class="safe"><i class="ti ti-scissors"></i>бюджет контекста</span>
-            </div>
-          </div>
-          <div class="d" style="color:var(--muted);font-size:12.5px;margin-top:6px">
-            Дашборд + API + автопилот. Запускает конвейер из клона, стримит прогресс вживую, пишет каждую стадию и её цену в базу.
-          </div>
-          <div class="pipe" id="pipe">
-            <div class="stage" data-key="researcher"><div class="em">🔎</div><div class="nm">Исследователь</div><div class="mdl">sonar</div><div class="pr">ищет в интернете · ~3 ₽</div></div>
-            <div class="stage" data-key="writer"><div class="em">✍️</div><div class="nm">Автор</div><div class="mdl">claude-sonnet</div><div class="pr">пишет черновик · ~55 ₽</div></div>
-            <div class="stage" data-key="editor"><div class="em">📐</div><div class="nm">Редактор</div><div class="mdl">claude-sonnet</div><div class="pr">структура и стиль · ~35 ₽</div></div>
-            <div class="stage" data-key="factcheck"><div class="em">🛡️</div><div class="nm">Факт-чекер</div><div class="mdl">sonar</div><div class="pr">сверяет факты · ~4 ₽</div></div>
-            <div class="stage" data-key="final"><div class="em">🪄</div><div class="nm">Финал-редактор</div><div class="mdl">claude-opus</div><div class="pr">доверие и точность · ~55 ₽</div></div>
-          </div>
-          <div class="bignote">у каждой роли — своя модель (env-настройка, без правки кода движка) · цены — оценка на статью ~8–10к знаков · итог ~150–250 ₽</div>
-        </div>
-
-        <div class="node" id="n-review" data-key="review" style="max-width:430px;margin:0 auto;width:100%">
-          <h3><i class="ti ti-checkup"></i>Ревью человеком</h3>
-          <div class="d">статья не уходит дальше без человека: предпросмотр во вкладке «Согласования» → <b>принять</b> или <b>на доработку</b>.</div>
-          <span class="tag">точка контроля</span>
-        </div>
+      <div class="node" id="n-timer" data-key="timer">
+        <h3><i class="ti ti-clock-play"></i>Автопилот</h3>
+        <div class="d">таймер каждые 30 мин: если включён — сам берёт следующую одобренную идею и запускает конвейер. Выключен — фабрика молчит.</div>
+        <span class="tag">включается в настройках</span>
       </div>
 
-      <!-- правая колонка -->
-      <div class="col">
-        <div class="node" id="n-llm" data-key="llm">
-          <h3><i class="ti ti-bolt"></i>LLM-шлюз · AITunnel</h3>
-          <div class="d">один ключ и один баланс на все модели (Claude, GPT, Perplexity…). В каждом ответе возвращает <b>точную цену запроса в ₽</b> и остаток.</div>
-          <span class="tag">один ключ · один баланс</span>
+      <div class="node" id="n-llm" data-key="llm">
+        <h3><i class="ti ti-bolt"></i>LLM-шлюз · AITunnel</h3>
+        <div class="d">один ключ и один баланс на все модели (Claude, GPT, Perplexity…). В каждом ответе возвращает <b>точную цену запроса в ₽</b> и остаток.</div>
+        <span class="tag">один ключ · один баланс</span>
+      </div>
+
+      <div class="node" id="n-clone" data-key="clone">
+        <h3><i class="ti ti-git-pull-request"></i>Клон движка на нашей VM</h3>
+        <div class="d">точная копия репы. Каждую ночь <code style="font-family:ui-monospace,monospace;font-size:11.5px">git pull</code> + проверка, что workflow'ы не сломались. Мы в него не пишем ни байта.</div>
+        <span class="tag">обновляется сам · 04:30</span>
+      </div>
+
+      <div class="bignode" id="n-platform" data-key="platform">
+        <div class="head">
+          <h2><i class="ti ti-layout-dashboard"></i>Наша платформа · factory.lpfanx.ru</h2>
+          <div class="saferow">
+            <span class="safe"><i class="ti ti-shield-lock"></i>кап ₽ на прогон</span>
+            <span class="safe"><i class="ti ti-gauge"></i>preflight-оценка</span>
+            <span class="safe"><i class="ti ti-scissors"></i>бюджет контекста</span>
+          </div>
         </div>
-        <div class="node" id="n-timer" data-key="timer">
-          <h3><i class="ti ti-clock-play"></i>Автопилот</h3>
-          <div class="d">таймер каждые 30 мин: если включён — сам берёт следующую одобренную идею и запускает конвейер. Выключен — фабрика молчит.</div>
-          <span class="tag">включается в настройках</span>
+        <div class="d" style="color:var(--muted);font-size:12.5px;margin-top:6px">
+          Дашборд + API + автопилот. Запускает конвейер из клона, стримит прогресс вживую, пишет каждую стадию и её цену в базу.
         </div>
-        <div class="node dashedbox" id="n-cms" data-key="cms">
-          <h3><i class="ti ti-world-upload"></i>CMS · Strapi → блоги VK Tech</h3>
-          <div class="d">публикация принятых статей в CMS сайта. В движке уже есть заготовка интеграции со Strapi.</div>
-          <span class="tag ghost">фаза 4 · ещё не подключено</span>
+        <div class="pipe" id="pipe">
+          <div class="stage" data-key="researcher"><div class="em">🔎</div><div class="nm">Исследователь</div><div class="mdl">sonar</div><div class="pr">ищет в интернете · ~3 ₽</div></div>
+          <div class="stage" data-key="writer"><div class="em">✍️</div><div class="nm">Автор</div><div class="mdl">claude-sonnet</div><div class="pr">пишет черновик · ~55 ₽</div></div>
+          <div class="stage" data-key="editor"><div class="em">📐</div><div class="nm">Редактор</div><div class="mdl">claude-sonnet</div><div class="pr">структура и стиль · ~35 ₽</div></div>
+          <div class="stage" data-key="factcheck"><div class="em">🛡️</div><div class="nm">Факт-чекер</div><div class="mdl">sonar</div><div class="pr">сверяет факты · ~4 ₽</div></div>
+          <div class="stage" data-key="final"><div class="em">🪄</div><div class="nm">Финал-редактор</div><div class="mdl">claude-opus</div><div class="pr">доверие и точность · ~55 ₽</div></div>
         </div>
+        <div class="bignote">у каждой роли — своя модель (env-настройка, без правки кода движка) · цены — оценка на статью ~8–10к знаков · итог ~150–250 ₽</div>
+      </div>
+
+      <div class="node" id="n-data" data-key="data">
+        <h3><i class="ti ti-database"></i>Наши данные</h3>
+        <div class="d">банк идей, история прогонов (SQLite), готовые статьи, база знаний. Лежат отдельно от клона — обновление движка их не трогает.</div>
+        <span class="tag">на стороне фабрики контента</span>
+      </div>
+
+      <div class="node" id="n-review" data-key="review">
+        <h3><i class="ti ti-checkup"></i>Ревью человеком</h3>
+        <div class="d">статья не уходит дальше без человека: предпросмотр во вкладке «Согласования» → <b>принять</b> или <b>на доработку</b>.</div>
+        <span class="tag">точка контроля</span>
+      </div>
+
+      <div class="node dashedbox" id="n-cms" data-key="cms">
+        <h3><i class="ti ti-world-upload"></i>CMS · Strapi → блоги VK Tech</h3>
+        <div class="d">публикация принятых статей в CMS сайта. В движке уже есть заготовка интеграции со Strapi.</div>
+        <span class="tag ghost">фаза 4 · ещё не подключено</span>
       </div>
     </div>
   </div>
@@ -252,9 +261,9 @@
       <h3><i class="ti ti-refresh"></i>Почему агенты всегда свежие</h3>
       <ul>
         <li>Мозги (промпты агентов, правила, скиллы, workflow'ы) — это <b>файлы в git-репе Левашова</b>. Он их развивает каждый день.</li>
-        <li>Наша VM ночью делает <code>git pull</code> → утром фабрика уже работает на новой версии. За два дня движок ушёл с v4.44 на v4.57 — мы ничего не делали.</li>
+        <li>Наша VM ночью делает <code style="font-family:ui-monospace,monospace;font-size:12px">git pull</code> → утром фабрика уже работает на новой версии. За два дня движок ушёл с v4.44 на v4.57 — мы ничего не делали.</li>
         <li>Это работает, потому что <b>клон read-only</b>: все наши данные и настройки лежат снаружи. Обновление никогда не конфликтует.</li>
-        <li>Настройка под нас — через <b>env-переменные</b> (какая модель на какую роль, лимиты контекста) и слой <code>company/</code> (бренд, продукты, «что нельзя говорить»). Поэтому один движок можно растащить на все блоги VK Tech — меняется только слой данных.</li>
+        <li>Настройка под нас — через <b>env-переменные</b> (какая модель на какую роль, лимиты контекста) и слой <code style="font-family:ui-monospace,monospace;font-size:12px">company/</code> (бренд, продукты, «что нельзя говорить»).</li>
       </ul>
     </div>
   </div>
@@ -266,45 +275,38 @@
 (function(){
   var $ = function(s){ return document.querySelector(s); };
   var board = $("#board"), svg = $("#wires");
+  var clamp = function(v, a, b){ return Math.max(a, Math.min(b, v)); };
 
-  // ── стрелки: from, to, label, side hints ──
+  // все связи вертикальные: линия идёт по центру более узкого блока — в свободном коридоре
   var WIRES = [
-    { id:"w-git",    from:"n-git",     to:"n-clone",    label:"git pull · ночью + валидация", dashed:false, axis:"v" },
-    { id:"w-clone",  from:"n-clone",   to:"n-platform", label:"конвейер запускается из клона", dashed:false, axis:"h" },
-    { id:"w-llm",    from:"n-llm",     to:"n-platform", label:"вызовы моделей → цена в ₽", dashed:false, axis:"h" },
-    { id:"w-data",   from:"n-data",    to:"n-platform", label:"идеи · прогоны · статьи", dashed:false, axis:"h" },
-    { id:"w-timer",  from:"n-timer",   to:"n-platform", label:"тик каждые 30 мин", dashed:true, axis:"h" },
-    { id:"w-review", from:"n-platform",to:"n-review",   label:"черновик готов", dashed:false, axis:"v" },
-    { id:"w-cms",    from:"n-review",  to:"n-cms",      label:"фаза 4 · после «принять»", dashed:true, axis:"h" }
+    { id:"w-git",    from:"n-git",     to:"n-clone",    label:"git pull · ночью + валидация", dashed:false },
+    { id:"w-clone",  from:"n-clone",   to:"n-platform", label:"конвейер запускается из клона", dashed:false },
+    { id:"w-timer",  from:"n-timer",   to:"n-platform", label:"тик каждые 30 мин", dashed:true },
+    { id:"w-llm",    from:"n-llm",     to:"n-platform", label:"вызовы моделей → цена в ₽", dashed:false },
+    { id:"w-data",   from:"n-data",    to:"n-platform", label:"идеи · прогоны · статьи", dashed:false },
+    { id:"w-review", from:"n-platform",to:"n-review",   label:"черновик готов", dashed:false },
+    { id:"w-cms",    from:"n-review",  to:"n-cms",      label:"фаза 4 · после «принять»", dashed:true }
   ];
   var labels = {};
 
-  function edgePoint(r, br, other, axis){
-    // точка на грани блока в сторону other
-    var cx = r.left + r.width/2 - br.left, cy = r.top + r.height/2 - br.top;
-    var ox = other.left + other.width/2 - br.left, oy = other.top + other.height/2 - br.top;
-    if (axis === "v" || Math.abs(oy-cy) > Math.abs(ox-cx)*1.3) {
-      return { x: cx, y: (oy>cy ? r.bottom : r.top) - br.top, dir:"v" };
-    }
-    return { x: (ox>cx ? r.right : r.left) - br.left, y: cy, dir:"h" };
-  }
-
   function draw(){
+    if (window.innerWidth <= 960) return;
     var br = board.getBoundingClientRect();
     svg.setAttribute("viewBox", "0 0 " + br.width + " " + br.height);
     WIRES.forEach(function(w){
       var a = document.getElementById(w.from), b = document.getElementById(w.to);
       if (!a || !b) return;
       var ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
-      var p1 = edgePoint(ra, br, rb, w.axis), p2 = edgePoint(rb, br, ra, w.axis);
-      var d;
-      if (p1.dir === "v" && p2.dir === "v") {
-        var my = (p1.y + p2.y) / 2;
-        d = "M"+p1.x+","+p1.y+" C"+p1.x+","+my+" "+p2.x+","+my+" "+p2.x+","+p2.y;
-      } else {
-        var mx = (p1.x + p2.x) / 2;
-        d = "M"+p1.x+","+p1.y+" C"+mx+","+p1.y+" "+mx+","+p2.y+" "+p2.x+","+p2.y;
-      }
+      // базовый x — центр более узкого блока, зажатый в границы обоих
+      var narrow = ra.width <= rb.width ? ra : rb;
+      var bx = narrow.left + narrow.width/2 - br.left;
+      var x1 = clamp(bx, ra.left - br.left + 46, ra.right - br.left - 46);
+      var x2 = clamp(bx, rb.left - br.left + 46, rb.right - br.left - 46);
+      var down = rb.top > ra.top;                      // цель ниже?
+      var y1 = (down ? ra.bottom : ra.top) - br.top;
+      var y2 = (down ? rb.top : rb.bottom) - br.top;
+      var my = (y1 + y2) / 2;
+      var d = "M"+x1+","+y1+" C"+x1+","+my+" "+x2+","+my+" "+x2+","+y2;
       var path = document.getElementById(w.id);
       if (!path) {
         path = document.createElementNS("http://www.w3.org/2000/svg","path");
@@ -314,35 +316,35 @@
       path.setAttribute("d", d);
       path.setAttribute("class", "wire" + (w.dashed ? " dashed" : ""));
       path.setAttribute("marker-end", "url(#arr)");
-      // подпись
       var lb = labels[w.id];
       if (!lb) {
         lb = document.createElement("div");
         lb.className = "wlabel"; lb.textContent = w.label;
         board.appendChild(lb); labels[w.id] = lb;
       }
-      var mid = path.getPointAtLength(path.getTotalLength()/2);
-      lb.style.left = mid.x + "px"; lb.style.top = mid.y + "px";
+      lb.style.left = ((x1 + x2) / 2) + "px";
+      lb.style.top = my + "px";
     });
   }
   window.addEventListener("resize", draw);
   setTimeout(draw, 60); setTimeout(draw, 400);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function(){ setTimeout(draw, 50); });
 
   function wireOn(id, on){
-    var p = document.getElementById(id); if (!p) return;
-    p.setAttribute("class", "wire" + (on ? " flow" : (WIRES.find(function(w){return w.id===id;}).dashed ? " dashed" : "")));
+    var w = WIRES.find(function(x){ return x.id === id; });
+    var p = document.getElementById(id); if (!p || !w) return;
+    p.setAttribute("class", "wire" + (on ? " flow" : (w.dashed ? " dashed" : "")));
     p.setAttribute("marker-end", on ? "url(#arrOn)" : "url(#arr)");
     if (labels[id]) labels[id].className = "wlabel" + (on ? " on" : "");
   }
   function allWires(on){ WIRES.forEach(function(w){ wireOn(w.id, on); }); }
 
-  // ── детали по клику ──
   var DETAILS = {
     git: { i:"ti-brand-github", t:"GitHub Левашова — content-agents", h:
       "<b>Что это:</b> «мозги» фабрики. Каждый агент — md-файл с паспортом (роль, модель, инструменты, какие скиллы читать). Рядом правила редполитики, скиллы, YAML-workflow'ы (кто за кем идёт) и слой <code>company/</code> — бренд и продукты.<ul>"+
       "<li><b>Кто владеет:</b> Левашов. Он развивает движок каждый день — мы получаем это автоматически.</li>"+
       "<li><b>Почему это не просто тексты:</b> файлы связаны (агент → скиллы → правила), на каждое изменение движок гоняет автопроверки. Поэтому править их нужно через git (MR), а не в визуальном редакторе.</li>"+
-      "<li><b>Для тиража на блоги:</b> ядро вендор-нейтральное, вся VK-специфика — отдельным слоем данных. Новый блог = новый слой, движок общий.</li></ul>" },
+      "<li><b>Ядро вендор-нейтральное:</b> вся VK-специфика — отдельным слоем данных. Новый блог = новый слой, движок общий.</li></ul>" },
     clone: { i:"ti-git-pull-request", t:"Read-only клон движка", h:
       "<b>Что это:</b> локальная копия репы Левашова на нашей VM. Платформа запускает конвейер из неё подпроцессом.<ul>"+
       "<li><b>Автообновление:</b> ночью в 04:30 <code>git pull --ff-only</code>; если версия сменилась — прогоняется валидация всех workflow. Лог виден во вкладке Logs.</li>"+
@@ -359,7 +361,7 @@
       "<li><b>Дашборд:</b> живой конвейер (стадии загораются в реальном времени), банк идей, история, страница расходов с балансом, согласования с предпросмотром.</li>"+
       "<li><b>Предохранители:</b> кап ₽ на прогон (превысил — обрыв), preflight-оценка цены до каждого вызова, лимит токенов, бюджет контекста на стадию.</li>"+
       "<li><b>API:</b> всё то же самое доступно по REST/WebSocket — дашборд лишь один из клиентов.</li></ul>" },
-    llm: { i:"ti-bolt", t:"LLM-шлюз (сейчас AITunnel)", h:
+    llm: { i:"ti-bolt", t:"LLM-шлюз (AITunnel)", h:
       "<b>Что это:</b> одна точка доступа ко всем моделям: Claude, GPT, Perplexity, Gemini. Один ключ, один баланс.<ul>"+
       "<li><b>Точный учёт:</b> каждый ответ шлюза несёт цену запроса в рублях и остаток баланса — себестоимость статьи считается не по прикидкам, а по факту.</li>"+
       "<li><b>Кэш промптов:</b> повторяющийся контекст дешевле до 10 раз.</li>"+
@@ -381,7 +383,7 @@
     researcher: { i:"ti-search", t:"Стадия 1 · Исследователь (Perplexity sonar)", h:
       "Ищет фактуру в интернете <b>нативно</b> — sonar это поисковая модель, ей не нужны отдельные инструменты. Отдаёт ресёрч-бриф с источниками. Дешёвая: ~2–5 ₽ за стадию.<div class='hint' style='margin-top:8px'>дальше бриф режется бюджетом контекста (~24k), чтобы не раздувать вход автора</div>" },
     writer: { i:"ti-pencil", t:"Стадия 2 · Автор (Claude Sonnet)", h:
-      "Пишет черновик по брифу: структура, заголовки, SEO-требования, стиль бренда (скиллы и правила из движка). Самая дорогая по токенам стадия: ~40–60 ₽. Именно тут больше всего экономит кэш промптов и бюджет контекста." },
+      "Пишет черновик по брифу: структура, заголовки, SEO-требования, стиль бренда (скиллы и правила из движка). Самая дорогая по токенам стадия: ~40–60 ₽. Именно тут больше всего экономят кэш промптов и бюджет контекста." },
     editor: { i:"ti-scale", t:"Стадия 3 · Редактор (Claude Sonnet)", h:
       "Правит структуру, логику и стиль черновика по редполитике; в эконом-профиле работает точечными правками (diff), а не переписыванием — быстрее и дешевле: ~30–40 ₽." },
     factcheck: { i:"ti-shield-check", t:"Стадия 4 · Факт-чекер (Perplexity sonar)", h:
@@ -391,20 +393,17 @@
   };
 
   var detail = $("#detail");
-  var selected = null;
   function showDetail(key){
     var d = DETAILS[key]; if (!d) return;
     detail.innerHTML = "<h3><i class='ti "+d.i+"'></i>"+d.t+"</h3><div class='body'>"+d.h+"</div>";
-    document.querySelectorAll(".node,.stage").forEach(function(n){ n.classList.remove("sel"); });
+    document.querySelectorAll(".node,.stage,.bignode").forEach(function(n){ n.classList.remove("sel"); });
     var el = document.querySelector("[data-key='"+key+"']");
     if (el) el.classList.add("sel");
-    selected = key;
   }
-  document.querySelectorAll(".node,.stage").forEach(function(n){
+  document.querySelectorAll(".node,.stage,.bignode").forEach(function(n){
     n.addEventListener("click", function(e){ e.stopPropagation(); showDetail(n.getAttribute("data-key")); });
   });
 
-  // ── демо-прогон ──
   var runBtn = $("#runBtn"), resetBtn = $("#resetBtn"), stat = $("#runStat"), costEl = $("#costVal");
   var running = false, timers = [];
   var stages = Array.prototype.slice.call(document.querySelectorAll(".stage"));
